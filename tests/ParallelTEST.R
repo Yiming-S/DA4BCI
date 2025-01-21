@@ -1,3 +1,6 @@
+
+devtools::document()
+install.packages()
 ####################################
 # Example Parallel Domain Adaptation Script
 ####################################
@@ -86,112 +89,77 @@ generate_data <- function(n_s, n_t, dist_type, fs = 50, t = 1) {
 ####################################
 # (2) Placeholder Domain Adaptation Functions
 ####################################
-# Please replace these with your actual implementations
-domain_adaptation_tca <- function(src, tgt, k=10, mu=1, sigma=1) {
-  list(weighted_source_data=src, target_data=tgt)
-}
-domain_adaptation_sa <- function(src, tgt, k=10) {
-  list(weighted_source_data=src, target_data=tgt)
-}
-domain_adaptation_mida <- function(src, tgt, k=10, max=TRUE) {
-  list(weighted_source_data=src, target_data=tgt)
-}
-domain_adaptation_riemannian <- function(cov_s, cov_t) {
-  # Return a dummy rotation
-  list(rotation_matrix=diag(nrow(cov_s)))
-}
-domain_adaptation_coral <- function(src, tgt, lambda=1e-5) {
-  list(weighted_source_data=src, target_data=tgt)
-}
-domain_adaptation_gfk <- function(src, tgt, dim_subspace=10) {
-  list(weighted_source_data=src, target_data=tgt)
-}
-
-####################################
-# (3) Simple Visualization
-####################################
-plot_data_comparison <- function(src, tgt, Zs, Zt, description, method="pca") {
-  p1 <- ggplot() + ggtitle(paste("Before -", description))
-  p2 <- ggplot() + ggtitle(paste("After -", description))
-  list(p1 = p1, p2 = p2)
-}
-
-####################################
-# (4) Main Parallel Testing Script
-####################################
-# Adjust to your desired output path
 pic_dir <- "~/Desktop/pic"
 
-# Domain adaptation methods to test
+
 DA_methods <- c("tca", "sa", "mida", "rd", "coral", "gfk")
 
-# Create and register a parallel cluster
-num_cores <- max(1, detectCores() - 1)
-cl <- makeCluster(num_cores)
+
+cl <- makeCluster(detectCores() - 1)
 registerDoParallel(cl)
 
-# Collect results in a list
+
 all_results <- list()
 
-for (method_name in DA_methods) {
+for(method_name in DA_methods) {
   cat(">>> Testing method:", method_name, "\n")
 
-  # Parallel loop over 10 distribution types
-  results_this_method <- foreach(
-    i = 1:10,
-    .packages = c("ggplot2", "gridExtra", "Rtsne","RSpectra","geigen","MASS")
-  ) %dopar% {
 
-    # (a) Generate data
-    test_data <- generate_data(10, 10, dist_type = i, fs = 50, t = 3)
-    src <- test_data$source_data
-    tgt <- test_data$target_data
+  results_this_method <- foreach(i = 1:10,
+                                 .packages = c("ggplot2", "gridExtra",
+                                               "Rtsne","RSpectra","geigen","MASS", "DA4BCI")) %dopar% {
+                                                 test_data <- generate_data(10, 10, dist_type = i, fs = 50, t = 3)
+                                                 source_data <- test_data$source_data
+                                                 target_data <- test_data$target_data
 
-    # (b) Time the domain adaptation
-    start_time <- Sys.time()
-    da <- switch(
-      method_name,
-      tca = domain_adaptation_tca(src, tgt, k=10, mu=1e-5, sigma=10),
-      sa  = domain_adaptation_sa(src, tgt, k=10),
-      mida= domain_adaptation_mida(src, tgt, k=10, max=TRUE),
-      rd  = {
-        cov_s <- cov(src)
-        cov_t <- cov(tgt)
-        rd_res <- domain_adaptation_riemannian(cov_s, cov_t)
-        list(weighted_source_data=src %*% rd_res$rotation_matrix, target_data=tgt)
-      },
-      coral = domain_adaptation_coral(src, tgt, lambda=1e-5),
-      gfk   = domain_adaptation_gfk(src, tgt, dim_subspace=10)
-    )
-    elapsed <- Sys.time() - start_time
 
-    # (c) Visualization
-    Z_s <- da$weighted_source_data
-    Z_t <- da$target_data
+                                                 tm <- Sys.time()
+                                                 da <- switch(method_name,
+                                                              tca = domain_adaptation_tca(source_data, target_data,
+                                                                                          k = 10, mu = 1e-5, sigma = 10),
+                                                              sa = domain_adaptation_sa(source_data, target_data, k = 10),
+                                                              mida = domain_adaptation_mida(source_data, target_data,
+                                                                                            k = 10, max = TRUE),
+                                                              rd = {
+                                                                rd_res <- domain_adaptation_riemannian(source_data, target_data)
+                                                                list(weighted_source_data = source_data %*% rd_res$rotation_matrix,
+                                                                     target_data = target_data)
+                                                              },
+                                                              coral = {
+                                                                domain_adaptation_coral(source_data, target_data, lambda = 1e-5)
+                                                              },
+                                                              gfk = {
+                                                                domain_adaptation_gfk(source_data, target_data, dim_subspace = 10)
+                                                              }
+                                                 )
+                                                 time_taken <- Sys.time() - tm
 
-    plots <- plot_data_comparison(src, tgt, Z_s, Z_t,
-                                  description = test_data$dist_name,
-                                  method="pca")
-    title_str <- paste0("Method:", method_name,
-                        " | DistType:", i,
-                        " | Time:", round(as.numeric(elapsed), 3), "s")
-    combined_plot <- grid.arrange(plots$p1, plots$p2, ncol=2, top=title_str)
+                                                 Z_s <- da$weighted_source_data
+                                                 Z_t <- da$target_data
 
-    # (d) Save figure
-    out_file <- file.path(pic_dir, paste0(method_name, "_dist_", i, ".png"))
-    ggsave(out_file, combined_plot, width=14, height=7)
+                                                 # 可视化
+                                                 plots <- plot_data_comparison(source_data, target_data,
+                                                                               Z_s, Z_t, description = test_data$dist_name,
+                                                                               method = "pca")
 
-    list(dist_type = i, time_taken = elapsed)
-  }
+                                                 title <- paste0("Method:", method_name,
+                                                                 " | DistType:", i,
+                                                                 " | Time: ", round(as.numeric(time_taken), 3), "s")
+                                                 combined_plot <- grid.arrange(plots$p1, plots$p2, ncol = 2, top = title)
+
+                                                 combined_file <- file.path(pic_dir, paste0(method_name,
+                                                                                            "_data_distribution_", i, ".png"))
+                                                 ggsave(combined_file, combined_plot, width = 14, height = 7)
+
+                                                 return(list(dist_type = i, time_taken = time_taken))
+                                               }
 
   all_results[[method_name]] <- results_this_method
 }
 
-# Stop parallel cluster
 stopCluster(cl)
 
-# Summarize average runtime per method
-for (m in names(all_results)) {
+for(m in names(all_results)) {
   times_vec <- sapply(all_results[[m]], function(x) as.numeric(x$time_taken))
-  cat("Method:", m, "| Avg time:", round(mean(times_vec), 3), "seconds\n")
+  cat("Method:", m, " | Avg time:", round(mean(times_vec), 3), "seconds\n")
 }

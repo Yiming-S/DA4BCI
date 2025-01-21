@@ -48,7 +48,11 @@
 #' @export
 #####################################
 
-domain_adaptation_riemannian <- function(C_source, C_target) {
+domain_adaptation_riemannian <- function(source_data, target_data) {
+
+  C_source <- cov(source_data)
+  C_target <- cov(target_data)
+
   # Step 1: Compute the Riemannian distance between source and target covariance matrices
   C1_inv <- solve(C_source)
   C_prod <- C1_inv %*% C_target

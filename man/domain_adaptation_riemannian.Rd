@@ -4,7 +4,7 @@
 \alias{domain_adaptation_riemannian}
 \title{Riemannian-Distance-Based Alignment (RD)}
 \usage{
-domain_adaptation_riemannian(C_source, C_target)
+domain_adaptation_riemannian(source_data, target_data)
 }
 \arguments{
 \item{C_source}{A numeric covariance matrix (source).}
