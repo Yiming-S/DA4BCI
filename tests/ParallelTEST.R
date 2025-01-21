@@ -1,6 +1,6 @@
 
-devtools::document()
-install.packages()
+# install.packages("remotes")
+remotes::install_github("Yiming-S/DA4BCI")
 ####################################
 # Example Parallel Domain Adaptation Script
 ####################################
@@ -20,71 +20,64 @@ library(MASS)
 # (1) Generate Various Distributions
 ####################################
 generate_data <- function(n_s, n_t, dist_type, fs = 50, t = 1) {
-  # Adjust the number of samples based on frequency (fs) and time (t)
-  adj_n_s <- n_s * fs * t
-  adj_n_t <- n_t * fs * t
+  adjusted_n_s <- n_s * fs * t
+  adjusted_n_t <- n_t * fs * t
 
-  # A descriptive name for each distribution type
-  dist_name <- switch(
-    as.character(dist_type),
-    "1"  = "Standard Normal Distribution",
-    "2"  = "Uniform Distribution",
-    "3"  = "Normal Dist with Different Means",
-    "4"  = "Exponential Distribution",
-    "5"  = "Normal Dist with Different SD",
-    "6"  = "Poisson Distribution",
-    "7"  = "Student's t-Distribution",
-    "8"  = "Binomial Distribution",
-    "9"  = "Normal Dist (variant) with Different SD",
-    "10" = "Normal and Cauchy Distribution",
-    stop("Invalid dist_type. Must be between 1 and 10.")
-  )
-
-  # Generate source/target data according to dist_type
   if (dist_type == 1) {
-    source_data <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
-    target_data <- matrix(rnorm(adj_n_t * 50), adj_n_t, 50)
+    source_data <- matrix(rnorm(adjusted_n_s * 50), adjusted_n_s, 50)
+    target_data <- matrix(rnorm(adjusted_n_t * 50), adjusted_n_t, 50)
+    dist_name <- "Standard Normal Distribution"
   } else if (dist_type == 2) {
-    source_data <- matrix(runif(adj_n_s * 50), adj_n_s, 50)
-    target_data <- matrix(runif(adj_n_t * 50), adj_n_t, 50)
+    source_data <- matrix(runif(adjusted_n_s * 50), adjusted_n_s, 50)
+    target_data <- matrix(runif(adjusted_n_t * 50), adjusted_n_t, 50)
+    dist_name <- "Uniform Distribution"
   } else if (dist_type == 3) {
-    source_data <- matrix(rnorm(adj_n_s * 50, mean = 5), adj_n_s, 50)
-    target_data <- matrix(rnorm(adj_n_t * 50, mean = -5), adj_n_t, 50)
+    source_data <- matrix(rnorm(adjusted_n_s * 50, mean = 5), adjusted_n_s, 50)
+    target_data <- matrix(rnorm(adjusted_n_t * 50, mean = -5), adjusted_n_t, 50)
+    dist_name <- "Normal Distribution with Different Means"
   } else if (dist_type == 4) {
-    source_data <- matrix(rexp(adj_n_s * 50), adj_n_s, 50)
-    target_data <- matrix(rexp(adj_n_t * 50), adj_n_t, 50)
+    source_data <- matrix(rexp(adjusted_n_s * 50), adjusted_n_s, 50)
+    target_data <- matrix(rexp(adjusted_n_t * 50), adjusted_n_t, 50)
+    dist_name <- "Exponential Distribution"
   } else if (dist_type == 5) {
-    source_data <- matrix(rnorm(adj_n_s * 50, sd = 2), adj_n_s, 50)
-    target_data <- matrix(rnorm(adj_n_t * 50, sd = 0.5), adj_n_t, 50)
+    source_data <- matrix(rnorm(adjusted_n_s * 50, sd = 2), adjusted_n_s, 50)
+    target_data <- matrix(rnorm(adjusted_n_t * 50, sd = 0.5), adjusted_n_t, 50)
+    dist_name <- "Normal Dist with Diff. Standard Deviations"
   } else if (dist_type == 6) {
-    source_data <- matrix(rpois(adj_n_s * 50, lambda = 3), adj_n_s, 50)
-    target_data <- matrix(rpois(adj_n_t * 50, lambda = 10), adj_n_t, 50)
+    source_data <- matrix(rpois(adjusted_n_s * 50, lambda = 3), adjusted_n_s, 50)
+    target_data <- matrix(rpois(adjusted_n_t * 50, lambda = 10), adjusted_n_t, 50)
+    dist_name <- "Poisson Distribution"
   } else if (dist_type == 7) {
-    source_data <- matrix(rt(adj_n_s * 50, df = 5), adj_n_s, 50)
-    target_data <- matrix(rt(adj_n_t * 50, df = 10), adj_n_t, 50)
+    source_data <- matrix(rt(adjusted_n_s * 50, df = 5), adjusted_n_s, 50)
+    target_data <- matrix(rt(adjusted_n_t * 50, df = 10), adjusted_n_t, 50)
+    dist_name <- "Student's t-Distribution"
   } else if (dist_type == 8) {
-    source_data <- matrix(rbinom(adj_n_s * 50, size = 10, prob = 0.3), adj_n_s, 50)
-    target_data <- matrix(rbinom(adj_n_t * 50, size = 10, prob = 0.7), adj_n_t, 50)
+    source_data <- matrix(rbinom(adjusted_n_s * 50, size = 10, prob = 0.3),
+                          adjusted_n_s, 50)
+    target_data <- matrix(rbinom(adjusted_n_t * 50, size = 10, prob = 0.7),
+                          adjusted_n_t, 50)
+    dist_name <- "Binomial Distribution"
   } else if (dist_type == 9) {
-    source_data <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
-    target_data <- matrix(rnorm(adj_n_t * 50, sd = 3), adj_n_t, 50)
-  } else {
-    source_data <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
-    target_data <- matrix(rcauchy(adj_n_t * 50), adj_n_t, 50)
+    source_data <- matrix(rnorm(adjusted_n_s * 50, mean = 0, sd = 1),
+                          adjusted_n_s, 50)
+    target_data <- matrix(rnorm(adjusted_n_t * 50, mean = 0, sd = 3),
+                          adjusted_n_t, 50)
+    dist_name <- "Normal Dist with Diff. SD (another variant)"
+  } else if (dist_type == 10) {
+    source_data <- matrix(rnorm(adjusted_n_s * 50), adjusted_n_s, 50)
+    target_data <- matrix(rcauchy(adjusted_n_t * 50), adjusted_n_t, 50)
+    dist_name <- "Normal and Cauchy Distribution"
   }
 
-  # Optional: random labels
-  source_label <- sample(0:1, adj_n_s, replace = TRUE)
-  target_label <- sample(0:1, adj_n_t, replace = TRUE)
+  # Generate random labels (0 or 1) for each row
+  source_label <- sample(0:1, adjusted_n_s, replace = TRUE)
+  target_label <- sample(0:1, adjusted_n_t, replace = TRUE)
 
-  list(
-    source_data = source_data,
-    target_data = target_data,
-    source_label = source_label,
-    target_label = target_label,
-    dist_name = dist_name
-  )
+  return(list(source_data = source_data, target_data = target_data,
+              source_label = source_label, target_label = target_label,
+              dist_name = dist_name))
 }
+
 
 ####################################
 # (2) Placeholder Domain Adaptation Functions
@@ -121,6 +114,8 @@ for(method_name in DA_methods) {
                                                               mida = domain_adaptation_mida(source_data, target_data,
                                                                                             k = 10, max = TRUE),
                                                               rd = {
+                                                                # cov_s <- cov(source_data)
+                                                                # cov_t <- cov(target_data)
                                                                 rd_res <- domain_adaptation_riemannian(source_data, target_data)
                                                                 list(weighted_source_data = source_data %*% rd_res$rotation_matrix,
                                                                      target_data = target_data)
