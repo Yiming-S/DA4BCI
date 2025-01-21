@@ -17,4 +17,4 @@ These methods help align EEG data from different sessions or subjects, mitigatin
 2. In R, install the **remotes** (or **devtools**) package if you haven’t yet:
    ```r
    install.packages("remotes")
-   remotes::install_github("YourUsername/DA4BCI")
+   remotes::install_github("Yiming-S/DA4BCI")
