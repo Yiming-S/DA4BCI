@@ -79,6 +79,8 @@ generate_data <- function(n_s, n_t, dist_type, fs = 160, t = 3) {
 # ---------------------------------------------
 # (2) Parallel Testing
 # ---------------------------------------------
+
+set.seed(2025)
 # Initialize Parallel Cluster
 cl <- makeCluster(detectCores() - 1)
 registerDoParallel(cl)
