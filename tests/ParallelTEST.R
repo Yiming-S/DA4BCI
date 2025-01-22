@@ -1,11 +1,7 @@
 
-# install.packages("remotes")
-remotes::install_github("Yiming-S/DA4BCI")
 # ---------------------------------------------
 # Parallel Domain Adaptation Testing Script
 # ---------------------------------------------
-library(DA4BCI)
-ls("package:DA4BCI")
 
 # Required Libraries
 library(parallel)
@@ -19,10 +15,11 @@ library(geigen)
 library(MASS)
 
 # Path for Saving Results
-pic_dir <- "~/Desktop/pic"  # Adjust as needed
+# pic_dir <- "~/Desktop/pic"  # Adjust as needed
+pic_dir <- "C:\\Users\\Administrator\\Desktop\\pic"
 
 # Domain Adaptation Methods
-DA_methods <- c("tca", "sa", "mida", "rd", "coral", "gfk")
+DA_methods <- c("tca", "sa", "mida", "rd", "coral", "gfk", "DA4BCI")
 
 # ---------------------------------------------
 # (1) Generate Data
@@ -94,15 +91,12 @@ for (method_name in DA_methods) {
 
   results_this_method <- foreach(
     i = 1:10,
-    .packages = c("ggplot2", "gridExtra", "Rtsne", "RSpectra", "geigen", "MASS", "DA4BCI")
+    .packages = c("ggplot2", "gridExtra", "Rtsne", "RSpectra", "geigen", "MASS")
   ) %dopar% {
     # Generate test data
     test_data <- generate_data(10, 10, dist_type = i, fs = 50, t = 10)
     src <- test_data$source_data
     tgt <- test_data$target_data
-
-    # Calculate MMD Before Adaptation
-    mmd_before <- compute_mmd(src, tgt, sigma = 1)
 
     # Perform domain adaptation
     start_time <- Sys.time()
@@ -123,10 +117,6 @@ for (method_name in DA_methods) {
     # Visualization
     Z_s <- da$weighted_source_data
     Z_t <- da$target_data
-
-    # Calculate MMD After Adaptation
-    mmd_after <- compute_mmd(Z_s, Z_t, sigma = 1)
-
     pdf(NULL)
     plots <- plot_data_comparison(src, tgt, Z_s, Z_t, description = test_data$dist_name)
     combined_plot <- grid.arrange(plots$p1, plots$p2, ncol = 2,
@@ -137,14 +127,10 @@ for (method_name in DA_methods) {
     ggsave(file.path(pic_dir, paste0(method_name, "_dist_", i, ".png")),
            combined_plot, width = 14, height = 7)
 
-    # Return results for this distribution
-    data.frame(
-      Method = method_name, DistType = i,
-      MMD_Before = mmd_before, MMD_After = mmd_after,
-      Time_Taken = as.numeric(elapsed), stringsAsFactors = FALSE
-    )
+    list(dist_type = i, time_taken = elapsed)
   }
-  summary_table <- rbind(summary_table, do.call(rbind, results_this_method))
+
+  all_results[[method_name]] <- results_this_method
 }
 
 stopCluster(cl)
@@ -156,4 +142,3 @@ for (method in names(all_results)) {
   times <- sapply(all_results[[method]], function(x) x$time_taken)
   cat("Method:", method, "| Avg runtime:", round(mean(times), 3), "seconds\n")
 }
-
