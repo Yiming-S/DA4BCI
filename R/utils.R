@@ -1,7 +1,10 @@
 
 # rbf_kernel
+# compute_distance_matrix
+# compute_wasserstein
 # compute_mmd
 # orthonormal_complement
+# evaluate_shift
 # plot_data_comparison
 
 #####################################
@@ -45,6 +48,77 @@ rbf_kernel <- function(x, y, sigma) {
   return(kernel[1:n, -(1:n)])
 }
 
+####################################
+#' Compute Euclidean Distance Matrix
+#'
+#' @description
+#' The \code{compute_distance_matrix} function computes the pairwise Euclidean
+#' distance matrix between two datasets \code{source} and \code{target}.
+#'
+#' @param source A numeric matrix where rows are observations and columns are features.
+#' @param target A numeric matrix with the same structure as \code{source}.
+#'
+#' @return A numeric matrix of size \eqn{nrow(source) \times nrow(target)} containing
+#'   the pairwise Euclidean distances.
+#'
+#' @examples
+#' \dontrun{
+#' source <- matrix(rnorm(20), nrow = 5, ncol = 4)
+#' target <- matrix(rnorm(24, mean = 2), nrow = 6, ncol = 4)
+#' dist_matrix <- compute_distance_matrix(source, target)
+#' dim(dist_matrix)  # 5 x 6
+#' }
+#'
+#' @export
+####################################
+compute_distance_matrix <- function(source, target) {
+  cross_term <- source %*% t(target)
+  source_norms <- rowSums(source^2)
+  target_norms <- rowSums(target^2)
+  sqrt(outer(source_norms, target_norms, "+") - 2 * cross_term)
+}
+
+####################################
+#' Compute Wasserstein Distance
+#'
+#' @description
+#' The \code{compute_wasserstein} function calculates the Wasserstein distance
+#' between the distributions represented by \code{source} and \code{target}.
+#'
+#' @param source A numeric matrix where rows are observations and columns are features.
+#' @param target A numeric matrix with the same structure as \code{source}.
+#'
+#' @return A single numeric value representing the Wasserstein distance.
+#'
+#' @details
+#' This function uses the \code{transport} package to compute the optimal transport plan
+#' and calculate the Wasserstein distance. Pairwise Euclidean distances are used as the cost matrix.
+#'
+#' @examples
+#' \dontrun{
+#' source <- matrix(rnorm(20), nrow = 5, ncol = 4)
+#' target <- matrix(rnorm(24, mean = 2), nrow = 6, ncol = 4)
+#' wasserstein_dist <- compute_wasserstein(source, target)
+#' cat("Wasserstein Distance:", wasserstein_dist, "\n")
+#' }
+#'
+#' @export
+####################################
+compute_wasserstein <- function(source, target) {
+  stopifnot(is.matrix(source), is.matrix(target))
+  if (ncol(source) != ncol(target)) {
+    stop("Source and target must have the same number of features (columns).")
+  }
+
+  n_s <- nrow(source)
+  n_t <- nrow(target)
+  p <- rep(1 / n_s, n_s)
+  q <- rep(1 / n_t, n_t)
+
+  cost_matrix <- compute_distance_matrix(source, target)
+  plan <- transport::transport(p, q, cost_matrix, method = "revsimplex")
+  sum(plan$mass * cost_matrix[cbind(plan$from, plan$to)])
+}
 
 #####################################
 #' Compute the Maximum Mean Discrepancy (MMD)
@@ -157,6 +231,51 @@ orthonormal_complement <- function(U) {
   return(U_perp)
 }
 
+####################################
+#' Evaluate Distribution Shift
+#'
+#' @description
+#' The \code{evaluate_shift} function computes two metrics (MMD and Wasserstein distance)
+#' to evaluate the distributional shift between \code{source_data} and \code{target_data},
+#' both before and after domain adaptation.
+#'
+#' @param source_data A numeric matrix representing the source domain data.
+#' @param target_data A numeric matrix representing the target domain data.
+#' @param adapted_source A numeric matrix representing the adapted source domain data.
+#' @param adapted_target A numeric matrix representing the adapted target domain data.
+#'
+#' @return A data frame with metrics (MMD, Wasserstein) and their values before
+#'   and after adaptation.
+#'
+#' @examples
+#' \dontrun{
+#' source <- matrix(rnorm(200), nrow = 20, ncol = 10)
+#' target <- matrix(rnorm(200, mean = 2), nrow = 20, ncol = 10)
+#' adapted_source <- matrix(rnorm(200), nrow = 20, ncol = 10)
+#' adapted_target <- matrix(rnorm(200, mean = 1.5), nrow = 20, ncol = 10)
+#'
+#' results <- evaluate_shift(source, target, adapted_source, adapted_target)
+#' print(results)
+#' }
+#'
+#' @export
+####################################
+evaluate_shift <- function(
+    source_data, target_data,
+    adapted_source, adapted_target
+) {
+  mmd_before <- compute_mmd(source_data, target_data, sigma = 1)
+  mmd_after <- compute_mmd(adapted_source, adapted_target, sigma = 1)
+
+  wasserstein_before <- compute_wasserstein(source_data, target_data)
+  wasserstein_after <- compute_wasserstein(adapted_source, adapted_target)
+
+  data.frame(
+    Metric = c("MMD", "Wasserstein"),
+    Before = c(mmd_before, wasserstein_before),
+    After = c(mmd_after, wasserstein_after)
+  )
+}
 
 #####################################
 #' Visual Comparison of Data Before and After Domain Adaptation
