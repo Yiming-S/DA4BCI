@@ -93,7 +93,8 @@ for (method_name in DA_methods) {
 
   results_this_method <- foreach(
     i = 1:10,
-    .packages = c("ggplot2", "gridExtra", "Rtsne", "RSpectra", "geigen", "MASS", "DA4BCI")
+    .packages = c("ggplot2", "gridExtra", "Rtsne",
+                  "RSpectra", "geigen", "MASS", "DA4BCI")
   ) %dopar% {
     # Generate test data
     test_data <- generate_data(10, 10, dist_type = i, fs = 50, t = 3)
