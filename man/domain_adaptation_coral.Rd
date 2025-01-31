@@ -27,24 +27,46 @@ so that its covariance now matches that of the target domain.}
 }
 \description{
 The \code{domain_adaptation_coral} function aligns the covariance structure of
-source and target data by first “whitening” the source data, then “re-coloring”
+source and target data by first "whitening" the source data, then "re-coloring"
 it using the target covariance matrix. This unsupervised procedure helps reduce
 domain shifts by matching second-order statistics (covariances) of the two datasets.
 }
 \examples{
-# Example usage:
+# Make sure the `domain_adaptation_coral` function is available,
+# e.g., library(DA4BCI) if it's in your DA4BCI package.
+
+# Set random seed
 set.seed(123)
-src <- matrix(rnorm(100), nrow = 20, ncol = 5)
-tgt <- matrix(rnorm(100, mean = 2), nrow = 20, ncol = 5)
+Define parameters for generating source and target data
+n_s <- n_t <- 10  # number of samples (in some abstract sense)
+fs <- 160         # sampling frequency
+t_seconds <- 3    # duration in seconds
 
-# Perform CORAL to align source data to target
-res_coral <- domain_adaptation_coral(src, tgt, lambda = 1e-5)
-aligned_src <- res_coral$weighted_source_data
+# Calculate adjusted sample sizes (rows of the data matrix)
+adj_n_s <- n_s * fs * t_seconds
+adj_n_t <- n_t * fs * t_seconds
 
-# Check covariances before/after
-cat("Cov of target:\n")
-print(cov(tgt))
-cat("Cov of aligned source:\n")
-print(cov(aligned_src))
+# Generate the source data (src) and target data (tgt)
+# - Source data: random normal distribution
+# - Target data: random normal distribution with a larger standard deviation (sd = 3)
+src <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
+tgt <- matrix(rnorm(adj_n_t * 50, sd = 3), adj_n_t, 50)
+
+# Perform CORAL domain adaptation
+da <- domain_adaptation_coral(src, tgt, lambda = 1e-5)
+Z_s <- da$weighted_source_data  # aligned source data
+Z_t <- da$target_data          # original target data (unmodified by CORAL)
+
+# Load visualization libraries
+library(ggplot2)
+library(gridExtra)
+
+# Compare distributions before and after alignment
+plots <- plot_data_comparison(src, tgt, Z_s, Z_t,
+                              description = "Normal")
+combined_plot <- grid.arrange(plots$p1, plots$p2, ncol = 2,
+                              top = paste("Method: CORAL",
+                              "Normal Dist (Another Variant)"))
+print(combined_plot)
 
 }
