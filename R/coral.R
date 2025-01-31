@@ -24,7 +24,6 @@
 #' }
 #'
 #' @examples
-#' \dontrun{
 #' # Example usage:
 #' set.seed(123)
 #' src <- matrix(rnorm(100), nrow = 20, ncol = 5)
@@ -39,7 +38,6 @@
 #' print(cov(tgt))
 #' cat("Cov of aligned source:\n")
 #' print(cov(aligned_src))
-#' }
 #'
 #' @export
 #####################################

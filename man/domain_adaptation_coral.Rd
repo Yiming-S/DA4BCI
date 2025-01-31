@@ -32,7 +32,6 @@ it using the target covariance matrix. This unsupervised procedure helps reduce
 domain shifts by matching second-order statistics (covariances) of the two datasets.
 }
 \examples{
-\dontrun{
 # Example usage:
 set.seed(123)
 src <- matrix(rnorm(100), nrow = 20, ncol = 5)
@@ -47,6 +46,5 @@ cat("Cov of target:\n")
 print(cov(tgt))
 cat("Cov of aligned source:\n")
 print(cov(aligned_src))
-}
 
 }
