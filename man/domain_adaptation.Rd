@@ -62,7 +62,6 @@ along the Grassmann manifold.}
 }
 }
 \examples{
-\dontrun{
 # Simulate data
 set.seed(123)
 source_mat <- matrix(rnorm(100), nrow = 20, ncol = 5)
@@ -79,7 +78,6 @@ res_tca <- domain_adaptation(source_mat, target_mat, method = "tca",
 # Check results
 dim(res_sa$weighted_source_data)
 dim(res_tca$weighted_source_data)
-}
 
 }
 \references{

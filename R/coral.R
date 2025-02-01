@@ -28,7 +28,7 @@
 #'
 #' # Set random seed
 #' set.seed(123)
-#' # Define parameters for generating source and target data
+#' Define parameters for generating source and target data
 #' n_s <- n_t <- 10  # number of samples (in some abstract sense)
 #' fs <- 160         # sampling frequency
 #' t_seconds <- 3    # duration in seconds

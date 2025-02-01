@@ -7,49 +7,75 @@
 domain_adaptation_riemannian(source_data, target_data)
 }
 \arguments{
-\item{C_source}{A numeric covariance matrix (source).}
+\item{source_data}{A numeric matrix representing the source domain, where rows
+correspond to observations and columns to features.}
 
-\item{C_target}{A numeric covariance matrix (target), having the same dimensions
-as \code{C_source}.}
+\item{target_data}{A numeric matrix representing the target domain, with the
+same number of columns as \code{source_data}.}
 }
 \value{
 A list containing:
 \describe{
-\item{\code{riemannian_distance}}{The Riemannian distance computed between
-\code{C_source} and \code{C_target}.}
-\item{\code{C_source_aligned}}{The source covariance matrix after alignment,
-approximating the target domain.}
-\item{\code{rotation_matrix}}{A rotation matrix that aligns \code{C_source}
-with \code{C_target} via singular value decomposition (SVD).}
+\item{\code{weighted_source_data}}{The source data projected (rotated) to better
+match the target domain.}
+\item{\code{target_data}}{The original target data (unmodified).}
+\item{\code{rotation_matrix}}{A rotation matrix derived via SVD to align
+\code{C_source} with \code{C_target}.}
+\item{\code{cov_source_aligned}}{The covariance matrix of the source data after
+alignment (approximating the target domain).}
 }
 }
 \description{
-The \code{domain_adaptation_riemannian} function measures the Riemannian distance
+The \code{domain_adaptation_riemannian} function computes the Riemannian distance
 between two covariance matrices (\code{C_source} and \code{C_target}), then uses
-a Procrustes-like alignment (via rotation) to map the source covariance into the
-target domain. This approach is widely used in EEG or similar applications where
-covariance-based alignment is beneficial to mitigate distribution shifts.
+an SVD-based Procrustes-like alignment (via a rotation matrix) to map the source
+domain into the target domain. This approach is often applied in EEG or similar
+scenarios where covariance-based alignment helps reduce distribution mismatches.
 }
 \details{
 \enumerate{
-\item \strong{Riemannian Distance} is calculated as \eqn{||\log(C_s^{-1/2} C_t C_s^{-1/2})||_F},
-reflecting how far two covariance matrices are on the manifold.
-\item \strong{Procrustes Alignment} uses SVD of both matrices (or one matrix
-inversion plus SVD) to find a rotation that aligns their principal axes.
-This step helps reduce distribution mismatch by making the source covariance
-resemble that of the target.
+\item \strong{Riemannian Distance} is computed as \eqn{\sqrt{\sum (\log(\lambda_i))^2}},
+where \eqn{\lambda_i} are the eigenvalues of \eqn{C_s^{-1} C_t}. Note that this distance
+is currently computed but not returned.
+\item \strong{Procrustes Alignment} uses singular value decomposition (SVD) to find
+a rotation matrix that aligns the principal axes of \code{C_source} to
+those of \code{C_target}.
 }
 }
 \examples{
-\dontrun{
-# Suppose we have two covariance matrices from EEG data
-set.seed(123)
-C_s <- crossprod(matrix(rnorm(50), 10, 5))
-C_t <- crossprod(matrix(rnorm(50, mean = 2), 10, 5))
+# Make sure the `domain_adaptation_riemannian` function is available,
+# e.g., library(DA4BCI) if it's in your DA4BCI package.
 
-rd_result <- domain_adaptation_riemannian(C_s, C_t)
-cat("Riemannian distance =", rd_result$riemannian_distance, "\n")
-str(rd_result$rotation_matrix)
-}
+# Set random seed
+set.seed(123)
+# Define parameters for generating source and target data
+n_s <- n_t <- 10  # number of samples
+fs <- 160         # sampling frequency
+t_seconds <- 3    # duration in seconds
+
+# Calculate adjusted sample sizes (rows of the data matrix)
+adj_n_s <- n_s * fs * t_seconds
+adj_n_t <- n_t * fs * t_seconds
+
+# Generate source (src) and target (tgt) data
+src <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
+tgt <- matrix(rnorm(adj_n_t * 50, sd = 3), adj_n_t, 50)
+
+# Perform domain adaptation
+da <- domain_adaptation_riemannian(src, tgt)
+Z_s <- da$weighted_source_data  # aligned source data
+Z_t <- da$target_data           # original target data
+
+# Load visualization libraries
+library(ggplot2)
+library(gridExtra)
+
+# Compare distributions before and after alignment
+plots <- plot_data_comparison(src, tgt, Z_s, Z_t,
+                              description = "Normal")
+combined_plot <- grid.arrange(plots$p1, plots$p2, ncol = 2,
+                              top = paste("Method: riemannian",
+                              "Normal Dist (Another Variant)"))
+print(combined_plot)
 
 }

@@ -108,10 +108,7 @@ for (method_name in DA_methods) {
       tca = domain_adaptation_tca(src, tgt, k = 10, mu = 1e-5, sigma = 10),
       sa  = domain_adaptation_sa(src, tgt, k = 10),
       mida= domain_adaptation_mida(src, tgt, k = 10, max = TRUE),
-      rd  = {
-        rd_res <- domain_adaptation_riemannian(src, tgt)
-        list(weighted_source_data = src %*% rd_res$rotation_matrix, target_data = tgt)
-      },
+      rd  = domain_adaptation_riemannian(src, tgt),
       coral = domain_adaptation_coral(src, tgt, lambda = 1e-5),
       gfk   = domain_adaptation_gfk(src, tgt, dim_subspace = 10)
     )

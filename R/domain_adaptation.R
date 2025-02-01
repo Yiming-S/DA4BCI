@@ -66,7 +66,6 @@
 #'   \code{\link{domain_adaptation_coral}}, \code{\link{domain_adaptation_gfk}}
 #'
 #' @examples
-#' \dontrun{
 #' # Simulate data
 #' set.seed(123)
 #' source_mat <- matrix(rnorm(100), nrow = 20, ncol = 5)
@@ -83,7 +82,6 @@
 #' # Check results
 #' dim(res_sa$weighted_source_data)
 #' dim(res_tca$weighted_source_data)
-#' }
 #'
 #' @export
 
@@ -97,7 +95,8 @@ domain_adaptation <- function(source_data, target_data,
     k <- ifelse(!is.null(control$k), control$k, 10)
     sigma <- ifelse(!is.null(control$sigma), control$sigma, 1)
     mu <- ifelse(!is.null(control$mu), control$mu, 1)
-    return(domain_adaptation_tca(source_data, target_data, k = k, sigma = sigma, mu = mu))
+    return(domain_adaptation_tca(source_data, target_data,
+                                 k = k, sigma = sigma, mu = mu))
 
   } else if (method == "sa") {
     k <- ifelse(!is.null(control$k), control$k, 10)
@@ -112,15 +111,7 @@ domain_adaptation <- function(source_data, target_data,
                                   k = k, sigma = sigma, mu = mu, max = max))
 
   } else if (method == "rd") {
-    cov_source <- cov(source_data)
-    cov_target <- cov(target_data)
-    alignment_result <- domain_adaptation_riemannian(cov_source, cov_target)
-    cov_source_aligned <- alignment_result$C_source_aligned
-    rotation_matrix    <- alignment_result$rotation_matrix
-    return(list(weighted_source_data = source_data %*% rotation_matrix,
-                target_data         = target_data,
-                cov_source_aligned  = cov_source_aligned,
-                rotation_matrix     = rotation_matrix))
+    return(domain_adaptation_riemannian(source_data, target_data))
 
   } else if (method == "coral") {
     lambda <- ifelse(!is.null(control$lambda), control$lambda, 1e-5)
