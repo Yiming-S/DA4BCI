@@ -37,10 +37,10 @@
 #' \dontrun{
 #' # Suppose we have two covariance matrices from EEG data
 #' set.seed(123)
-#' C_s <- crossprod(matrix(rnorm(50), 10, 5))
-#' C_t <- crossprod(matrix(rnorm(50, mean = 2), 10, 5))
+#' src <- matrix(rnorm(adj_n_s * 50), adj_n_s, 50)
+#' tgt <- matrix(rnorm(adj_n_t * 50, sd = 3), adj_n_t, 50)
 #'
-#' rd_result <- domain_adaptation_riemannian(C_s, C_t)
+#' rd_result <- domain_adaptation_riemannian(src, tgt)
 #' cat("Riemannian distance =", rd_result$riemannian_distance, "\n")
 #' str(rd_result$rotation_matrix)
 #' }
