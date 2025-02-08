@@ -61,6 +61,10 @@
 #' Gong, B., Shi, Y., Sha, F., \& Grauman, K. (2012).
 #' \emph{Geodesic Flow Kernel for Unsupervised Domain Adaptation.} In: \emph{CVPR}, 2066--2073, IEEE.
 #'
+#' Farahani, A., Voghoei, S., Rasheed, K., \& Arabnia, H. R. (2021).
+#' \emph{A brief review of domain adaptation.} In: \emph{Advances in data science and information
+#' engineering: proceedings from ICDATA 2020 and IKE 2020}, 877--894.
+#'
 #' @seealso \code{\link{domain_adaptation_tca}}, \code{\link{domain_adaptation_sa}},
 #'   \code{\link{domain_adaptation_mida}}, \code{\link{domain_adaptation_riemannian}},
 #'   \code{\link{domain_adaptation_coral}}, \code{\link{domain_adaptation_gfk}}
