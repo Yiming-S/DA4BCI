@@ -15,7 +15,6 @@
 #' \describe{
 #'   \item{weighted_source_data}{Transformed source data in TCA subspace.}
 #'   \item{target_data}{Transformed target data in TCA subspace.}
-#'   \item{eigenvalue}{The matrix of top k eigenvectors used for projection.}
 #' }
 #'
 #' @examples
@@ -23,14 +22,14 @@
 #' set.seed(123)
 #' src <- matrix(rnorm(100), nrow=20, ncol=5)
 #' tgt <- matrix(rnorm(100, mean=2), nrow=20, ncol=5)
-#' res <- domain_adaptation_tca(src, tgt, k=3, sigma=1, mu=0.1)
+#' res <- domain_adaptation_tca(src, tgt, sigma=1, mu=0.1)
 #' str(res)
 #' }
 #'
 #' @export
 
 domain_adaptation_tca <- function(source_data, target_data,
-                                  k = 10, sigma = 1, mu = 1) {
+                                  sigma = 1, mu = 1) {
 
   # Compute initial MMD
   # initial_mmd <- compute_mmd(source_data, target_data, sigma)
