@@ -6,6 +6,8 @@
 # orthonormal_complement
 # evaluate_shift
 # plot_data_comparison
+# sigma_med
+
 
 #####################################
 #' RBF (Gaussian) Kernel Computation
@@ -390,4 +392,83 @@ plot_data_comparison <- function(source_data, target_data,
     ggplot2::labs(title = paste0("Data Distribution After ", description))
 
   list(p1 = p1, p2 = p2)
+}
+
+#####################################
+#' Robust Median‑Distance Estimator
+#'
+#' @description
+#' The \code{sigma_med} function implements the so‑called *median
+#' heuristic* for selecting the bandwidth \eqn{\sigma} used in RBF (Gaussian)
+#' kernels or Maximum Mean Discrepancy (MMD) tests.
+#' It concatenates two data matrices \code{X} and \code{Y}, optionally
+#' subsamples at most \code{m} rows for efficiency, computes all pairwise
+#' Euclidean distances, and returns their median.  The routine is robust to
+#' very small sample sizes and to duplicated observations.
+#'
+#' @param X A numeric matrix (\eqn{n_1 \times p}) whose rows are observations
+#'   and columns are features (e.g., source or training domain).
+#' @param Y A numeric matrix (\eqn{n_2 \times p}) with the same number of
+#'   columns as \code{X} (e.g., target or test domain).
+#' @param m An integer giving the maximum number of rows used to estimate the
+#'   median distance.  If \code{nrow(rbind(X, Y)) > m}, rows are sampled
+#'   uniformly without replacement; otherwise all rows are used.
+#' @param seed Optional integer.  When supplied, the random subsample is
+#'   reproducible via \code{\link[base]{set.seed}}.
+#'
+#' @details
+#' \itemize{
+#'   \item When the combined sample size \eqn{N = n_1 + n_2} is \eqn{\le 2},
+#'         pairwise distances cannot be formed; the function returns
+#'         \code{NA_real_} and issues a warning.
+#'   \item If the median distance evaluates to zero (e.g., many duplicate
+#'         rows), a machine‑epsilon positive constant is returned instead to
+#'         avoid divide‑by‑zero errors in subsequent computations of
+#'         \eqn{1/(2\sigma^2)}.
+#' }
+#'
+#' @return A positive numeric scalar—the median Euclidean distance between
+#'   rows of \code{X} and \code{Y}.  Returns \code{NA_real_} if the sample
+#'   size is insufficient.
+#'
+#' @examples
+#' set.seed(42)
+#' X <- matrix(rnorm(100), nrow = 20)
+#' Y <- matrix(rnorm(120, 2), nrow = 20)
+#'
+#' # Use all rows (N <= m)
+#' sigma_all <- sigma_med(X, Y)
+#'
+#' # Subsample at most 15 rows
+#' sigma_sub <- sigma_med(X, Y, m = 15, seed = 1)
+#'
+#' @export
+#####################################
+sigma_med <- function(X, Y, m = 400, seed = NULL) {
+  # Optional reproducibility
+  if (!is.null(seed)) set.seed(seed)
+
+  # Combine domains
+  XY <- rbind(X, Y)
+  N  <- nrow(XY)
+
+  # Not enough points to form pairwise distances
+  if (N <= 2) {
+    warning("Not enough samples to compute pairwise distances; returning NA.")
+    return(NA_real_)
+  }
+
+  # Sub‑sample if necessary
+  if (N > m) {
+    idx <- sample.int(N, size = m, replace = FALSE)
+    XY  <- XY[idx, , drop = FALSE]
+  }
+
+  # Median Euclidean distance
+  d_med <- median(as.numeric(dist(XY, method = "euclidean")))
+
+  # Avoid zero bandwidth
+  if (d_med == 0) d_med <- .Machine$double.eps
+
+  d_med
 }
