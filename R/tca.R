@@ -70,7 +70,7 @@ domain_adaptation_tca <- function(source_data, target_data,
   # B = KHK
   B <- KHK
   invAB <- B / mu - (a / cst) %*% crossprod(a, B)
-  W <- eigs(invAB, k)$vectors
+  W <- RSpectra::eigs(invAB, k)$vectors
   if (is.complex(W)) W <- Re(W)
 
   # For testing inversion formula
@@ -86,11 +86,6 @@ domain_adaptation_tca <- function(source_data, target_data,
     nrm <- nrm[nrm > 0]
   }
   W <- sweep(W, 2, sqrt(nrm), "/")
-
-  # # Select the top k eigenvectors
-  # W <- eigen_result$vectors[, 1:k]
-  # NO! Here you should take the eigenvectors associated
-  # to the k *smallest* generalized eigenvalues
 
   # Project the data
   Z <- K %*% W
