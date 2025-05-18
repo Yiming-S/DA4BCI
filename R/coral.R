@@ -69,8 +69,8 @@ domain_adaptation_coral <- function(source_data, target_data, lambda = 1e-5) {
   
   cov_source <- cov(source_data) + diag(lambda, ncol(source_data))
   cov_target <- cov(target_data) + diag(lambda, ncol(target_data))
-  cov_source <- regularize_cov(cov_source, eps = 1e-6)
-  cov_target <- regularize_cov(cov_target, eps = 1e-6)
+  cov_source <- regularize_cov(cov_source, lambda)
+  cov_target <- regularize_cov(cov_target, lambda)
 
   # Whiten source data
   chol_decomp_s <- tryCatch(
