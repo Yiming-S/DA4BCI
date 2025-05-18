@@ -62,8 +62,15 @@
 #'
 #' @export
 domain_adaptation_coral <- function(source_data, target_data, lambda = 1e-5) {
+
+  regularize_cov <- function(C, eps = 1e-6) {
+  # Add a small jitter to the diagonal to ensure positive definiteness
+  C + diag(eps * diag(C), nrow(C))}
+  
   cov_source <- cov(source_data) + diag(lambda, ncol(source_data))
   cov_target <- cov(target_data) + diag(lambda, ncol(target_data))
+  cov_source <- regularize_cov(cov_source, eps = 1e-6)
+  cov_target <- regularize_cov(cov_target, eps = 1e-6)
 
   # Whiten source data
   chol_decomp_s <- tryCatch(
