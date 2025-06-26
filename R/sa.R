@@ -65,46 +65,26 @@ domain_adaptation_sa <- function(source_data, target_data, k = 10) { # , sigma =
   # initial_mmd <- compute_mmd(source_data, target_data, sigma)
   # cat("Initial MMD:", initial_mmd, "\n")
 
-  # Perform PCA and return the top h components based on the given k
-  # perform_pca <- function(data, k) {
-  # pca_result <- prcomp(data, scale. = TRUE)
-  # h <- min(k, ncol(pca_result$x))
-  # return(list(scores = pca_result$x[, 1:h], loadings = pca_result$rotation[, 1:h]))
-  # }
-
   # Perform PCA on source and target data
   k <- min(k, ncol(source_data))
-  # pca_source <- perform_pca(source_data, k)
-  # pca_target <- perform_pca(target_data, k)
-  # Z_s <- pca_source$scores
-  # Z_t <- pca_target$scores
   pca_source <- prcomp(source_data, scale. = TRUE, rank. = k)
   pca_target <- prcomp(target_data, scale. = TRUE, rank. = k)
+
+
+  # Ensure Z_s and Z_t have the same number of columns
   Z_s <- pca_source$rotation
   Z_t <- pca_target$rotation
 
-  # Ensure Z_s and Z_t have the same number of columns
-  # h <- min(nrow(Z_s), nrow(Z_t))
-  # Z_s <- Z_s[1:h, , drop = FALSE]
-  # Z_t <- Z_t[1:h, , drop = FALSE]
-
   # Compute the linear transformation matrix W
-  # W <- t(Z_s) %*% Z_t
   W <- crossprod(Z_s, Z_t)
-  # W_source <- pca_source$loadings %*% W # not needed
 
   # Project the source and target data to the aligned subspaces
-  # weighted_source_data <- source_data %*% W_source
-  # projected_target_data <- target_data %*% pca_target$loadings
   weighted_source_data <- pca_source$x %*% W
   projected_target_data <- pca_target$x
 
   # final_mmd <- compute_mmd(weighted_source_data, projected_target_data, sigma)
   # cat("Final MMD:", final_mmd, "\n")
 
-  # return(list(W_source = W_source, W_target = pca_target$loadings,
-  # weighted_source_data = weighted_source_data,
-  # target_data = projected_target_data))
   return(list(weighted_source_data = weighted_source_data,
               target_data = projected_target_data,
               eigenvalue = W))

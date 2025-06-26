@@ -127,3 +127,11 @@ domain_adaptation <- function(source_data, target_data,
   }
 }
 
+
+
+#' @importFrom stats  cov dist median prcomp
+#' @importFrom transport  wasserstein1d
+#' @importFrom geigen geigen
+#' @importFrom graphics plot
+#' @importFrom utils  head tail
+NULL

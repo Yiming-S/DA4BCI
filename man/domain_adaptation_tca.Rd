@@ -4,7 +4,7 @@
 \alias{domain_adaptation_tca}
 \title{Transfer Component Analysis (TCA) for Domain Adaptation}
 \usage{
-domain_adaptation_tca(source_data, target_data, sigma = 1, mu = 1)
+domain_adaptation_tca(source_data, target_data, k = 10, sigma = 1, mu = 1)
 }
 \arguments{
 \item{source_data}{A numeric matrix (observations by rows, features by columns)
@@ -12,11 +12,11 @@ representing the source domain.}
 
 \item{target_data}{A numeric matrix of the same shape for the target domain.}
 
+\item{k}{An integer specifying the number of latent components. Default = 10.}
+
 \item{sigma}{A numeric value for the RBF kernel bandwidth. Default = 1.}
 
 \item{mu}{A numeric regularization term. Default = 1.}
-
-\item{k}{An integer specifying the number of latent components. Default = 10.}
 }
 \value{
 A list containing:
@@ -34,7 +34,7 @@ reducing cross-domain mismatch.
 set.seed(123)
 src <- matrix(rnorm(100), nrow=20, ncol=5)
 tgt <- matrix(rnorm(100, mean=2), nrow=20, ncol=5)
-res <- domain_adaptation_tca(src, tgt, sigma=1, mu=0.1)
+res <- domain_adaptation_tca(src, tgt, k = 5, sigma = 1, mu = 0.1)
 str(res)
 }
 

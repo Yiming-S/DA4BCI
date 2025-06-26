@@ -4,7 +4,7 @@
 \alias{compute_distance_matrix}
 \title{Compute Euclidean Distance Matrix}
 \usage{
-compute_distance_matrix(source, target)
+compute_distance_matrix(source, target, eps = 1e-12)
 }
 \arguments{
 \item{source}{A numeric matrix where rows are observations and columns are features.}

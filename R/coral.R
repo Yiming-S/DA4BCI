@@ -28,7 +28,7 @@
 #'
 #' # Set random seed
 #' set.seed(123)
-#' Define parameters for generating source and target data
+#' # Define parameters for generating source and target data
 #' n_s <- n_t <- 10  # number of samples (in some abstract sense)
 #' fs <- 160         # sampling frequency
 #' t_seconds <- 3    # duration in seconds
@@ -66,7 +66,7 @@ domain_adaptation_coral <- function(source_data, target_data, lambda = 1e-5) {
   regularize_cov <- function(C, eps = 1e-6) {
   # Add a small jitter to the diagonal to ensure positive definiteness
   C + diag(eps * diag(C), nrow(C))}
-  
+
   cov_source <- cov(source_data) + diag(lambda, ncol(source_data))
   cov_target <- cov(target_data) + diag(lambda, ncol(target_data))
   cov_source <- regularize_cov(cov_source, lambda)

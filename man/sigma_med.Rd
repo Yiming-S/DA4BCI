@@ -47,8 +47,8 @@ avoid divide‑by‑zero errors in subsequent computations of
 }
 \examples{
 set.seed(42)
-X <- matrix(rnorm(100), nrow = 20)
-Y <- matrix(rnorm(120, 2), nrow = 20)
+X <- matrix(rnorm(100), nrow = 20, ncol = 5)
+Y <- matrix(rnorm(100, 2), nrow = 20, ncol = 5)
 
 # Use all rows (N <= m)
 sigma_all <- sigma_med(X, Y)

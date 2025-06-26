@@ -307,8 +307,8 @@ plot_data_comparison <- function(source_data, target_data,
 #'
 #' @examples
 #' set.seed(42)
-#' X <- matrix(rnorm(100), nrow = 20)
-#' Y <- matrix(rnorm(120, 2), nrow = 20)
+#' X <- matrix(rnorm(100), nrow = 20, ncol = 5)
+#' Y <- matrix(rnorm(100, 2), nrow = 20, ncol = 5)
 #'
 #' # Use all rows (N <= m)
 #' sigma_all <- sigma_med(X, Y)
@@ -320,6 +320,7 @@ plot_data_comparison <- function(source_data, target_data,
 #####################################
 sigma_med <- function(X, Y, m = 400, seed = NULL) {
   # Optional reproducibility
+  stopifnot(ncol(X) == ncol(Y))
   if (!is.null(seed)) set.seed(seed)
 
   # Combine domains

@@ -25,6 +25,7 @@ Depends:
     geigen,
     pracma
 Imports: 
+    transport (>= 0.13-1),
     ggplot2,
     Rtsne,
     MASS,

@@ -22,14 +22,16 @@
 #' set.seed(123)
 #' src <- matrix(rnorm(100), nrow=20, ncol=5)
 #' tgt <- matrix(rnorm(100, mean=2), nrow=20, ncol=5)
-#' res <- domain_adaptation_tca(src, tgt, sigma=1, mu=0.1)
+#' res <- domain_adaptation_tca(src, tgt, k = 5, sigma = 1, mu = 0.1)
 #' str(res)
 #' }
 #'
 #' @export
 
 domain_adaptation_tca <- function(source_data, target_data,
-                                  sigma = 1, mu = 1) {
+                                  k = 10,
+                                  sigma = 1,
+                                  mu = 1) {
 
   # Compute initial MMD
   # initial_mmd <- compute_mmd(source_data, target_data, sigma)
@@ -39,35 +41,21 @@ domain_adaptation_tca <- function(source_data, target_data,
   X <- rbind(source_data, target_data)
 
   # Compute the kernel matrix using RBF kernel
-  # K <- rbf_kernel(X, X, sigma)
   nrmX <- rowSums(X^2)
-  K <- exp( (-0.5/sigma^2) * (outer(nrmX, nrmX, "+") - 2 * tcrossprod(X)) ) # faster
+  K <- exp( (-0.5/sigma^2) * (outer(nrmX, nrmX, "+") - 2 * tcrossprod(X)) )
 
 
   # Construct the L matrix
   n_s <- nrow(source_data)
   n_t <- nrow(target_data)
-  # L <- construct_L_matrix(n_s, n_t) # not needed
 
-  # Compute the centering matrix H
   n <- n_s + n_t
-  # H <- diag(n) - (1 / n) * matrix(1, n, n) # not needed
-
   # Solve the generalized eigenvalue problem
-  # KLK <- K %*% L %*% K # not needed
-  # KHK <- K %*% H %*% K
-  KHK <- tcrossprod(K - rowMeans(K)) # much faster
-  # M <- KLK + mu * diag(n) # not needed
+  KHK <- tcrossprod(K - rowMeans(K))
 
-  # eigen_result <- tryCatch(geigen(M, KH, TRUE),
-  # error = function(e) geigen(M, KH, FALSE))
-  # eigen_result <- geigen(M, KHK, FALSE) # KHK is not psd since H is not full rank
-  # KLK = aa' (note that L is rank-1)
   a <- rowMeans(K[,1:n_s]) - rowMeans(K[,-(1:n_s)])
-  # A = mu I + KLK = mu I + aa'
-  # A^{-1} = (1/mu) I - (aa') / (mu * (mu + a'a))
   cst <- mu * (mu + sum(a^2))
-  # B = KHK
+
   B <- KHK
   invAB <- B / mu - (a / cst) %*% crossprod(a, B)
   W <- RSpectra::eigs(invAB, k)$vectors
