@@ -27,7 +27,7 @@
 #'
 #' @export
 ####################################
-compute_distance_matrix <- function(source, target) {
+compute_distance_matrix <- function(source, target, eps = 1e-12) {
   cross_term <- source %*% t(target)
   source_norms <- rowSums(source^2)
   target_norms <- rowSums(target^2)
