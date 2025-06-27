@@ -167,7 +167,7 @@ compute_mmd <- function(source, target, sigma) {
 #'
 #' @examples
 #' \dontrun{
-#' set.seed(42)
+#' set.seed(123)
 #' src <- matrix(rnorm(100),  nrow = 20, ncol = 5)
 #' tgt <- matrix(rnorm(100, 1), nrow = 20, ncol = 5)
 #' ed <- compute_energy(src, tgt)
@@ -185,7 +185,7 @@ compute_energy <- function(source, target) {
   d_st <- compute_distance_matrix(source, target)
 
   # Empirical estimator (Székely et al.)
-  ed2 <- 2 * mean(d_st) - mean(ds) - mean(dt)
+  ed2 <- 2 * mean(d_st, na.rm = TRUE) - mean(ds, na.rm = TRUE) - mean(dt, na.rm = TRUE)
 
   # Guard against tiny negative values due to numerical error
   sqrt(pmax(ed2, 0))

@@ -39,7 +39,7 @@ root to zero.
 }
 \examples{
 \dontrun{
-set.seed(42)
+set.seed(123)
 src <- matrix(rnorm(100),  nrow = 20, ncol = 5)
 tgt <- matrix(rnorm(100, 1), nrow = 20, ncol = 5)
 ed <- compute_energy(src, tgt)
