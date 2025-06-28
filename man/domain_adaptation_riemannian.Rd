@@ -4,7 +4,12 @@
 \alias{domain_adaptation_riemannian}
 \title{Riemannian-Distance-Based Alignment (RD)}
 \usage{
-domain_adaptation_riemannian(source_data, target_data)
+domain_adaptation_riemannian(
+  source_data,
+  target_data,
+  ridge = 1e-06,
+  pinv_tol = 1e-10
+)
 }
 \arguments{
 \item{source_data}{A numeric matrix representing the source domain, where rows

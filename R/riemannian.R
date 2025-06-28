@@ -72,34 +72,47 @@
 #' print(combined_plot)
 #'
 #' @export
-domain_adaptation_riemannian <- function(source_data, target_data) {
+domain_adaptation_riemannian <- function(source_data,
+                                         target_data,
+                                         ridge = 1e-6,
+                                         pinv_tol = 1e-10) {
 
-  # Compute the covariance matrices of the source and target data
-  C_source <- cov(source_data)
-  C_target <- cov(target_data)
 
-  # Step 1: Compute the Riemannian distance between source and target covariance matrices
-  C1_inv <- solve(C_source)
-  C_prod <- C1_inv %*% C_target
-  eig_vals <- eigen(C_prod)$values
-  log_eig_vals <- log(eig_vals)
-  riemannian_distance <- sqrt(sum(log_eig_vals^2))
+  ## 1. Covariance with ridge regularisation
+  C_source <- cov(source_data) + diag(ridge, ncol(source_data))
+  C_target <- cov(target_data) + diag(ridge, ncol(target_data))
 
-  # Step 2: Perform Procrustes adaptation (domain alignment)
-  # Singular Value Decomposition (SVD) of source and target covariance matrices
-  svd_source <- svd(C_source)
-  svd_target <- svd(C_target)
 
-  # Compute rotation matrix using U and V matrices from SVD
-  rotation_matrix <- svd_source$u %*% t(svd_target$u)
+  ## 2. Invert C_source
+  inv_Cs <- tryCatch(
+    solve(C_source),
+    error = function(e) {
+      sv <- svd(C_source)
+      d_inv <- ifelse(sv$d > pinv_tol, 1 / sv$d, 0)
+      sv$v %*% diag(d_inv) %*% t(sv$u)  # Moore-Penrose pinv
+    }
+  )
 
-  # Transform the source covariance matrix to align with the target domain
-  C_source_aligned <- rotation_matrix %*% C_source %*% t(rotation_matrix)
 
-  # Return the source data projected by the rotation matrix, the original target data,
-  # and the rotation matrix used for alignment
-  return(list(weighted_source_data = source_data %*% rotation_matrix,
-              target_data = target_data,
-              rotation_matrix = rotation_matrix,
-              cov_source_aligned = C_source_aligned))
+  ## 3. Riemannian distance
+  eig_vals <- eigen(inv_Cs %*% C_target, symmetric = FALSE, only.values = TRUE)$values
+  riem_dist <- sqrt(sum(log(Re(eig_vals))^2))  # purely real part is expected
+
+
+  ## 4. Procrustes-like alignment (rotation)
+  U_s <- svd(C_source)$u
+  U_t <- svd(C_target)$u
+  R   <- U_s %*% t(U_t)
+
+  C_source_aligned <- R %*% C_source %*% t(R)
+
+
+  ## 5. Return list
+  list(
+    weighted_source_data = source_data %*% R,
+    target_data          = target_data,
+    rotation_matrix      = R,
+    cov_source_aligned   = C_source_aligned,
+    riemannian_distance  = riem_dist
+  )
 }
