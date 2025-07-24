@@ -191,6 +191,74 @@ compute_energy <- function(source, target) {
   sqrt(pmax(ed2, 0))
 }
 
+############################################################
+#' Compute Geodesic (Grassmann) Distance
+#'
+#' @description
+#'   Treats each dataset’s column space as a subspace in ℝ^p.  It orthonormalises
+#'   those columns via QR decomposition (no PCA / eigen-decomposition), then
+#'   returns the geodesic distance between the two subspaces on the Grassmann
+#'   manifold.
+#'
+#' @param source  Numeric matrix (n_s × p).
+#' @param target  Numeric matrix (n_t × p).  Must have the same number of columns
+#'                as \code{source}.
+#' @param d       Optional positive integer ≤ p.  If supplied, only the first
+#'                \code{d} orthonormal directions are kept after QR.  When
+#'                \code{NULL} (default), the full column rank of each matrix is
+#'                used.
+#'
+#' @return A single non-negative numeric value – the geodesic distance.
+#'
+#' @details
+#'   * The columns are centered (mean-removed) to avoid bias from column means.
+#'   * QR provides an orthonormal basis without invoking PCA.
+#'   * Principal angles are obtained from the singular values of
+#'     \(U^{\top}V\).  The Grassmann distance is the ℓ2-norm of those angles.
+#'
+#' @examples
+#' set.seed(42)
+#' src <- matrix(rnorm(300),  60, 5)
+#' tgt <- matrix(rnorm(300, .5), 60, 5)
+#' compute_geodesic(src, tgt)               # full rank
+#' compute_geodesic(src, tgt, d = 3)        # compare 3-dim subspaces
+#'
+#' @export
+############################################################
+compute_geodesic <- function(source, target, d = NULL) {
+  stopifnot(is.matrix(source), is.matrix(target),
+            ncol(source) == ncol(target))
+
+  p <- ncol(source)
+  # Decide subspace dimension
+  if (is.null(d)) {
+    d_source <- qr(source)$rank
+    d_target <- qr(target)$rank
+    d        <- min(d_source, d_target)
+  } else {
+    d <- as.integer(d)
+    if (d < 1L || d > p)
+      stop("'d' must be between 1 and number of columns")
+  }
+
+  # Center columns and orthonormalise via QR
+  orthonorm_basis <- function(X, k) {
+    X_centered <- scale(X, center = TRUE, scale = FALSE)
+    Q <- qr.Q(qr(X_centered))
+    Q[, seq_len(min(k, ncol(Q))), drop = FALSE]        # p × k orthonormal matrix
+  }
+
+  U <- orthonorm_basis(source, d)
+  V <- orthonorm_basis(target, d)
+
+  # Principal angles
+  svd_uv <- svd(crossprod(U, V), nu = 0, nv = 0)       # SVD of UᵀV
+  cos_t  <- pmin(pmax(svd_uv$d, -1), 1)               # clamp to valid range
+  theta  <- acos(cos_t)
+
+  # Geodesic distance
+  sqrt(sum(theta^2))
+}
 
 ####################################
 #' Summarise Wasserstein, MMD, and Energy distances
@@ -240,10 +308,11 @@ distanceSummary <- function(source, target, sigma = NULL) {
   w <- compute_wasserstein(source, target)
   m <- compute_mmd(source, target, sigma)
   e <- compute_energy(source, target)
+  g <- compute_geodesic(source, target)
 
   data.frame(
-    Metric = c("Wasserstein", "MMD", "Energy"),
-    Value  = c(w, m, e),
+    Metric = c("Wasserstein", "MMD", "Energy", "Geodesic"),
+    Value  = c(w, m, e, g),
     row.names = NULL
   )
 }
