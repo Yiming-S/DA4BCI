@@ -347,3 +347,180 @@ sigma_med <- function(X, Y, m = 400, seed = NULL) {
 
   d_med
 }
+
+
+
+
+
+# ==============================================================================
+# Ledoit-Wolf Covariance Function
+# Estimate a robust covariance matrix using shrinkage toward the identity
+# ==============================================================================
+LW_covariance <- function(x) {
+  n <- nrow(x)  # Number of observations
+  p <- ncol(x)  # Number of variables
+
+  # Center the data
+  x <- x - matrix(colMeans(x), n, p, TRUE)
+
+  # Compute the sample covariance matrix
+  S <- crossprod(x) / n
+
+  # Mean of the diagonal elements of the sample covariance
+  m <- mean(diag(S))
+
+  # Calculate d2 and bbar2 for shrinkage parameter lambda
+  d2 <- sum((S - diag(m, p))^2) / p
+  bbar2 <- (sum(rowSums(x^2)^2) - n * sum(S^2) ) / (p * n^2)
+  b2 <- min(bbar2, d2)
+
+  # Compute the Ledoit-Wolf shrinkage covariance matrix
+  rho <- b2 / d2
+  S <- (1-rho) * S
+  diag(S) <- diag(S) + rho * m
+  return(S)
+}
+
+# ==============================================================================
+# Compute the Riemannian mean of a set of symmetric positive definite (SPD) matrices
+# ==============================================================================
+riemannian_mean <- function(cov_matrices, max_iterations = 500,
+                            epsilon = 1e-5) {
+  if (is.list(cov_matrices))
+    cov_matrices <- simplify2array(cov_matrices)
+  # Number of covariance matrices
+  m <- dim(cov_matrices)[3]
+  n <- dim(cov_matrices)[1]
+
+  # Step 1: Initialize the Riemannian mean
+  # Use the element-wise mean of the covariance matrices as the initial estimate
+  P_omega <- rowMeans(cov_matrices, dims = 2L)
+
+  # Step 2: Iterate to refine the Riemannian mean
+  for (iteration in 1:max_iterations) {
+    # Step 2.1: Compute the square root and inverse square root of the mean matrix (P_omega)
+    eig <- eigen(P_omega, symmetric = TRUE)
+    sqrt_P_omega <- eig$vectors %*% (t(eig$vectors) * sqrt(eig$values))
+    inv_sqrt_P_omega <- eig$vectors %*% (t(eig$vectors) / sqrt(eig$values))
+
+    # Step 2.2: Compute the average in the tangent space (logarithmic map)
+    S <- matrix(0, n, n) # Initialize tangent space mean
+    for (i in 1:m) {
+      # Map each covariance matrix to the tangent space
+      eig <- eigen(inv_sqrt_P_omega %*% cov_matrices[, , i] %*%
+                     inv_sqrt_P_omega, symmetric = TRUE)
+
+      # Accumulate the log map
+      S <- S + (eig$vectors %*% (t(eig$vectors) * log(eig$values)))
+    }
+    S <- S / m # Average the log-mapped matrices
+
+    # Note: S does not require further transformation by sqrt_P_omega
+    # because it will be multiplied immediately after by inv_sqrt_P_omega
+    # in the exponential map (the two operations cancel each other)
+    PS <- P_omega %*% S # needed to check convergence
+
+    # Step 2.3: Map back to the SPD matrix space (exponential map)
+    eig <- eigen(S, symmetric = TRUE)
+    P_omega <- sqrt_P_omega %*% eig$vectors %*%
+      (t(eig$vectors) * exp(eig$values)) %*% sqrt_P_omega
+
+    # Step 2.4: Check for convergence
+    # Convergence is measured by the Frobenius norm of the product of P_omega and S
+    if (sqrt(sum(PS * t(PS))) < epsilon) break
+  }
+
+  # Step 3: Return the Riemannian mean
+  return(P_omega)
+}
+
+
+
+# ==============================================================================
+# Logarithmic Map Function
+# Project matrix P_i to tangent space at reference point P_omega
+# ==============================================================================
+log_map <- function(P_omega, P_i) {
+  # Project P_i onto the tangent space at P_omega
+  if (is.list(P_omega)) {
+    sqrt_P_omega <- P_omega[["sqrt"]]
+    inv_sqrt_P_omega <- P_omega[["inv_sqrt"]]
+  } else {
+    eig <- eigen(P_omega, symmetric = TRUE)
+    sqrt_P_omega <- eig$vectors %*% diag(sqrt(eig$values)) %*% t(eig$vectors)
+    inv_sqrt_P_omega <- eig$vectors %*% diag(1 / sqrt(eig$values)) %*% t(eig$vectors)
+  }
+
+  # Map P_i into the tangent space of P_omega
+  w <- inv_sqrt_P_omega %*% P_i %*% inv_sqrt_P_omega
+  eig_w <- eigen(w, symmetric = TRUE)
+  log_w <- eig_w$vectors %*% diag(log(eig_w$values)) %*% t(eig_w$vectors)
+
+  # Project back to the original space
+  result <- sqrt_P_omega %*% log_w %*% sqrt_P_omega
+  return(result)
+}
+
+# ==============================================================================
+# Riemannian Exponential Map Function
+# Project tangent vector S_i back to SPD manifold at P_omega
+# ==============================================================================
+exp_map <- function(P_omega, S_i) {
+  # Extract or calculate the square root and inverse square root of P_omega
+  if (is.list(P_omega)) {
+    sqrt_P_omega <- P_omega[["sqrt"]]
+    inv_sqrt_P_omega <- P_omega[["inv_sqrt"]]
+  } else {
+    eig <- eigen(P_omega, symmetric = TRUE)
+    sqrt_P_omega <- eig$vectors %*% diag(sqrt(eig$values)) %*% t(eig$vectors)
+    inv_sqrt_P_omega <- eig$vectors %*% diag(1 / sqrt(eig$values)) %*% t(eig$vectors)
+  }
+
+  # Project S_i into the tangent space of P_omega
+  w <- inv_sqrt_P_omega %*% S_i %*% inv_sqrt_P_omega
+  eig_w <- eigen(w, symmetric = TRUE)
+
+  # Compute the matrix exponential in the tangent space
+  exp_w <- eig_w$vectors %*% diag(exp(eig_w$values)) %*% t(eig_w$vectors)
+
+  # Map back to the original space
+  result <- sqrt_P_omega %*% exp_w %*% sqrt_P_omega
+  return(result)
+}
+
+# ==============================================================================
+# Align source covariances to target geometry via Riemannian transport
+# ==============================================================================
+align_riemannian_transport <- function(cov_S, cov_T) {
+  if (length(cov_S) == 1) cov_S <- c(cov_S, cov_S)
+  if (length(cov_T) == 1) cov_T <- c(cov_T, cov_T)
+
+  mean_S <- riemannian_mean(cov_S)
+  mean_T <- riemannian_mean(cov_T)
+
+  lapply(cov_S, function(C) {
+    exp_map(mean_T, log_map(mean_S, C))
+  })
+}
+
+# ==============================================================================
+# Matrix power computation for SPD matrices
+# ==============================================================================
+matrix_power <- function(A, pow) {
+  A <- 0.5 * (A + t(A))
+
+  ## Short-cuts for common cases
+  if (pow ==  1)  return(A)
+  if (pow ==  0)  return(diag(nrow(A)))
+  if (pow == -1)  return(solve(A))
+
+  ## Eigendecomposition (symmetric -> guaranteed real/orthonormal V)
+  E <- eigen(A, symmetric = TRUE, only.values = FALSE)
+  vals <- pmax(E$values, 1e-8)         # clamp tiny / negative eigenvalues
+
+  ## Avoid allocating a full diag(): scale columns of V, then tcrossprod
+  Vscaled <- E$vectors * rep(vals ^ (pow / 2), each = nrow(E$vectors))
+  tcrossprod(Vscaled)                  # == V %*% diag(vals^pow) %*% t(V)
+}
+
+
