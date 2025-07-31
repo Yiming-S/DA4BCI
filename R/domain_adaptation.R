@@ -123,10 +123,6 @@
 #' @export
 
 
-# helper: a %||% b   → b is used only when a is NULL
-`%||%` <- function(a, b) if (!is.null(a)) a else b
-
-
 domain_adaptation <- function(source_data,
                               target_data,
                               method  = "sa",
@@ -135,6 +131,9 @@ domain_adaptation <- function(source_data,
   method <- match.arg(method,
                       choices = c("tca", "sa", "mida", "rd",
                                   "coral", "gfk", "art", "pt", "m3d"))
+
+  # helper: a %||% b   → b is used only when a is NULL
+  `%||%` <- function(a, b) if (!is.null(a)) a else b
 
   #TCA
   if (method == "tca") {

@@ -2,11 +2,10 @@
 % Please edit documentation in R/domain_adaptation.R
 \name{domain_adaptation}
 \alias{domain_adaptation}
-\alias{\%||\%}
 \alias{domain_adaptation-method}
 \title{Unified Interface for Domain Adaptation Methods}
 \usage{
-a \%||\% b
+domain_adaptation(source_data, target_data, method = "sa", control = list())
 }
 \arguments{
 \item{source_data}{A numeric matrix (or data frame) representing the source domain, with
