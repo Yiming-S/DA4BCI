@@ -8,6 +8,9 @@
 - **RD (Riemannian Distance)**
 - **CORAL (Correlation Alignment)**
 - **GFK (Geodesic Flow Kernel)**
+- **ART (Aligned Riemannian Transport)**
+- **PT (Parallel Transport)**
+- **M3D (Manifold-based Multi-step Domain Adaptation)**
 
 These methods help align EEG data from different sessions or subjects, mitigating distributional shifts and enabling more robust learning.
 
