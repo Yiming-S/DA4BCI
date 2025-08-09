@@ -2,37 +2,43 @@
 % Please edit documentation in R/utils.R
 \name{evaluate_shift}
 \alias{evaluate_shift}
-\title{Evaluate Distribution Shift}
+\title{Evaluate Distribution Shift Before/After Adaptation}
 \usage{
-evaluate_shift(source_data, target_data, adapted_source, adapted_target)
+evaluate_shift(source, target, adapted_source, adapted_target)
 }
 \arguments{
-\item{source_data}{A numeric matrix representing the source domain data.}
+\item{adapted_source}{Numeric matrix: adapted source.}
 
-\item{target_data}{A numeric matrix representing the target domain data.}
+\item{adapted_target}{Numeric matrix: adapted target.}
 
-\item{adapted_source}{A numeric matrix representing the adapted source domain data.}
+\item{source_data}{Numeric matrix (n_s × p) before adaptation.}
 
-\item{adapted_target}{A numeric matrix representing the adapted target domain data.}
+\item{target_data}{Numeric matrix (n_t × p) before adaptation.}
 }
 \value{
-A data frame with metrics (MMD, Wasserstein) and their values before
-and after adaptation.
+Data frame with columns \code{Metric}, \code{Before}, and \code{After}.
 }
 \description{
-The \code{evaluate_shift} function computes two metrics (MMD and Wasserstein distance)
-to evaluate the distributional shift between \code{source_data} and \code{target_data},
-both before and after domain adaptation.
+\code{evaluate_shift} reports MMD and Wasserstein distances for original data
+and adapted data.
 }
 \examples{
 \dontrun{
-source <- matrix(rnorm(200), nrow = 20, ncol = 10)
-target <- matrix(rnorm(200, mean = 2), nrow = 20, ncol = 10)
-adapted_source <- matrix(rnorm(200), nrow = 20, ncol = 10)
-adapted_target <- matrix(rnorm(200, mean = 1.5), nrow = 20, ncol = 10)
-
-results <- evaluate_shift(source, target, adapted_source, adapted_target)
-print(results)
+A <- matrix(rnorm(200), nrow = 20, ncol = 10)
+B <- matrix(rnorm(200, mean = 2), nrow = 20, ncol = 10)
+As <- matrix(rnorm(200), nrow = 20, ncol = 10)
+Bs <- matrix(rnorm(200, mean = 1.5), nrow = 20, ncol = 10)
+evaluate_shift(A, B, As, Bs)
 }
-
 }
+\seealso{
+\code{\link{compute_mmd}}, \code{\link{compute_wasserstein}}
+
+Other domain-adaptation: 
+\code{\link{distanceSummary}()},
+\code{\link{euclidean_alignment}()},
+\code{\link{kmm_weights}()},
+\code{\link{label_shift_em}()},
+\code{\link{proxy_a_distance}()}
+}
+\concept{domain-adaptation}

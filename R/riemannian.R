@@ -116,3 +116,6 @@ domain_adaptation_riemannian <- function(source_data,
     riemannian_distance  = riem_dist
   )
 }
+
+
+

@@ -1,149 +1,386 @@
 
-# rbf_kernel
-# orthonormal_complement
-# evaluate_shift
-# plot_data_comparison
-# sigma_med
+# utils.R
+#
+#  kmm_weights, label_shift_em, euclidean_alignment
+#  proxy_a_distance, distanceSummary, evaluate_shift
+#  plot_data_comparison
+#  ph_init, ph_update
 
 
-#####################################
-#' RBF (Gaussian) Kernel Computation
+#' Kernel Mean Matching Weights
 #'
 #' @description
-#' The \code{rbf_kernel} function calculates the Radial Basis Function (RBF)
-#' kernel matrix between two sets of observations \code{x} and \code{y},
-#' using \eqn{\exp(-||x - y||^2 / \sigma^2)}. It returns only the cross-block
-#' corresponding to \code{x} vs. \code{y}.
+#' \code{kmm_weights} computes KMM reweighting coefficients for covariate shift
+#' by solving a box-constrained QP via \code{quadprog::solve.QP}.
 #'
-#' @param x A numeric matrix where rows correspond to observations and columns
-#'   to features.
-#' @param y A numeric matrix with the same number of columns as \code{x}.
-#' @param sigma A positive scalar for the RBF kernel bandwidth.
+#' @param Xs Numeric matrix (n × d): source samples.
+#' @param Xt Numeric matrix (m × d): target samples.
+#' @param sigma Optional positive bandwidth; defaults to \code{sigma_med(Xs, Xt)}.
+#' @param B Positive upper bound for each weight.
+#' @param eps Nonnegative tolerance on total weight; default \code{B / sqrt(n)}.
 #'
 #' @details
-#' This function computes pairwise distances among rows of \code{x} and \code{y}
-#' (stacked together) via \code{\link[stats]{dist}}, then transforms them using
-#' the Gaussian kernel formula. Only the \code{x} vs. \code{y} sub-block is returned,
-#' producing an \eqn{n_x \times n_y} matrix.
+#' With RBF kernels \code{Kss} and \code{Kst} from \code{\link{rbf_kernel}},
+#' minimize \eqn{\tfrac{1}{2} w^\top K_{ss} w - \kappa^\top w} subject to
+#' \eqn{0 \le w_i \le B} and \eqn{|1^\top w - n| \le \varepsilon}, where
+#' \eqn{\kappa=(n/m)K_{st}\mathbf{1}}. A small ridge is added to ensure PD.
 #'
-#' @return A numeric matrix of size \eqn{nrow(x) \times nrow(y)} containing
-#'   the RBF kernel values.
+#' @return Numeric vector (length n) with weights in \eqn{[0, B]}.
 #'
 #' @examples
 #' \dontrun{
-#' set.seed(123)
-#' x <- matrix(rnorm(20), nrow = 5, ncol = 4)
-#' y <- matrix(rnorm(24, mean = 2), nrow = 6, ncol = 4)
-#' Kxy <- rbf_kernel(x, y, sigma = 1)
-#' dim(Kxy)  # 5 x 6
+#' set.seed(1)
+#' Xs <- matrix(rnorm(200), 20, 10); Xt <- matrix(rnorm(150, 1), 15, 10)
+#' w <- kmm_weights(Xs, Xt, B = 10); range(w)
 #' }
-#'
+#' @family domain-adaptation
+#' @seealso \code{\link{sigma_med}}, \code{\link{distanceSummary}}
 #' @export
-#####################################
-rbf_kernel <- function(x, y, sigma) {
-  distx <- as.matrix(dist(rbind(x, y)))
-  kernel <- exp(- (distx / sigma)^2)
-  n <- nrow(x)
-  return(kernel[1:n, -(1:n)])
+#'
+kmm_weights <- function(Xs, Xt, sigma = NULL, B = 100, eps = NULL) {
+  Xs <- as.matrix(Xs); Xt <- as.matrix(Xt)
+  n <- nrow(Xs); m <- nrow(Xt)
+
+  # bandwidth: median heuristic if not provided
+  if (is.null(sigma)) sigma <- sigma_med(Xs, Xt)
+  # tolerance: default per KMM practice
+  if (is.null(eps)) eps <- B / sqrt(max(1, n))
+
+  # kernels
+  Kss <- rbf_kernel(Xs, Xs, sigma)   # n x n
+  Kst <- rbf_kernel(Xs, Xt, sigma)   # n x m
+  Kss <- 0.5 * (Kss + t(Kss))        # symmetrize
+
+  # linear term κ = (n/m) * Kst * 1_m
+  dvec <- (n / m) * rowSums(Kst)
+
+  # constraints A^T w >= b:
+  # 1) w_i >= 0
+  # 2) -w_i >= -B            (w_i <= B)
+  # 3) 1^T w >= n - eps
+  # 4) -1^T w >= -(n + eps)  (1^T w <= n + eps)
+  Aeq  <- matrix(1, nrow = 1, ncol = n)
+  Amat <- cbind(diag(n), -diag(n), t(Aeq), -t(Aeq))
+  bvec <- c(rep(0, n), rep(-B, n), n - eps, -(n + eps))
+
+  # adaptive jitter to ensure PD for quadprog::solve.QP
+  jitters <- c(1e-8, 1e-6, 1e-4, 1e-2)
+  sol <- NULL
+  for (j in jitters) {
+    Dmat_try <- 0.5 * (Kss + t(Kss)) + diag(j, n)
+    sol <- try(quadprog::solve.QP(Dmat = Dmat_try, dvec = dvec,
+                                  Amat = Amat, bvec = bvec, meq = 0),
+               silent = TRUE)
+    if (!inherits(sol, "try-error")) break
+  }
+  if (inherits(sol, "try-error"))
+    stop("solve.QP failed; adjust 'sigma', 'B', or 'eps'.")
+
+  # clip to [0, B]
+  as.numeric(pmax(0, pmin(B, sol$solution)))
 }
 
 
-#####################################
-#' Orthonormal Complement of a Matrix
+
+#' Prior Adjustment under Label Shift via EM
 #'
 #' @description
-#' The \code{orthonormal_complement} function computes a matrix whose columns form
-#' an orthonormal basis for the subspace orthogonal to \code{U} in \eqn{\mathbb{R}^d}.
-#' Useful in methods like GFK, where one needs both the principal subspace and
-#' its complement.
+#' \code{label_shift_em} estimates target class priors and adjusts posteriors
+#' given source-trained posteriors on target data.
 #'
-#' @param U A \eqn{d \times k} matrix with orthonormal columns.
+#' @param Ps_yx Numeric matrix (n_t × K): source-model posteriors on target samples (rows sum to 1).
+#' @param pi_s Numeric length-K: source priors (will be normalized).
+#' @param tol Convergence tolerance. Default \code{1e-7}.
+#' @param maxit Maximum EM iterations. Default \code{200}.
 #'
-#' @details
-#' The function uses a QR decomposition of the \eqn{d \times d} identity matrix
-#' to get a full orthonormal basis, then projects it onto the orthogonal complement
-#' of \code{U}. Columns close to zero (norm < 1e-8) are removed. The result is truncated
-#' to \eqn{d-k} columns if needed.
-#'
-#' @return A \eqn{d \times (d-k)} matrix (or fewer columns if some are removed),
-#'   with orthonormal columns that are orthogonal to every column of \code{U}.
+#' @return List with \code{pi_t} (estimated target priors), \code{P_adj} (adjusted posteriors),
+#'   and \code{iter} (iterations used).
 #'
 #' @examples
 #' \dontrun{
-#' set.seed(123)
-#' U <- qr.Q(qr(matrix(rnorm(12), nrow = 4, ncol = 3)))  # 4x3 orthonormal basis
-#' U_perp <- orthonormal_complement(U)
-#' dim(U_perp)  # should be 4 x 1
-#' # Check orthogonality: crossprod(U, U_perp) ~ 0
+#' P <- matrix(runif(50), 10, 5); P <- P/rowSums(P)
+#' out <- label_shift_em(P, rep(1/5, 5))
+#' str(out)
 #' }
-#'
+#' @family domain-adaptation
 #' @export
-#####################################
-orthonormal_complement <- function(U) {
-  d <- nrow(U)
-  k <- ncol(U)
-  Q <- qr.Q(qr(diag(d)))
-  ProjU <- U %*% t(U)
+#'
+label_shift_em <- function(Ps_yx, pi_s, tol = 1e-7, maxit = 200) {
+  Ps_yx <- as.matrix(Ps_yx)
+  K <- ncol(Ps_yx)
+  pi_s <- as.numeric(pi_s)
+  pi_s <- pi_s / sum(pi_s)
+  pi_t <- pi_s
 
-  for (i in seq_len(d)) {
-    qi <- Q[, i, drop = FALSE]
-    qi_orth <- qi - ProjU %*% qi
-    norm_qi <- sqrt(sum(qi_orth^2))
-    if (norm_qi > 1e-12) {
-      Q[, i] <- qi_orth[, 1] / norm_qi
-    } else {
-      Q[, i] <- 0
+  it <- 0L
+  for (it in seq_len(maxit)) {
+    # E-step
+    R <- sweep(Ps_yx, 2, pi_t / (pi_s + 1e-15), `*`)
+    R <- sweep(R, 1, rowSums(R) + 1e-15, `/`)
+    # M-step
+    pi_new <- colMeans(R)
+    if (max(abs(pi_new - pi_t)) < tol) { pi_t <- pi_new; break }
+    pi_t <- pi_new
+  }
+
+  # Adjust posteriors under estimated priors
+  P_adj <- sweep(Ps_yx, 2, pi_t / (pi_s + 1e-15), `*`)
+  P_adj <- sweep(P_adj, 1, rowSums(P_adj) + 1e-15, `/`)
+  list(pi_t = pi_t, P_adj = P_adj, iter = it)
+}
+
+
+
+#' Euclidean Alignment (EA) for EEG Trials
+#'
+#' @description
+#' \code{euclidean_alignment} whitens a domain to identity (or recolors to \code{target_R})
+#' and applies the same linear transform to each trial.
+#'
+#' @param trials List of matrices (channels × samples) from one domain.
+#' @param target_R Optional SPD (channels × channels). If \code{NULL}, align to identity.
+#'
+#' @details
+#' Each trial \eqn{X} is mapped by \eqn{X' = R_{\mathrm{target}}^{1/2} R_{\mathrm{domain}}^{-1/2} X},
+#' where \eqn{R_{\mathrm{domain}}} is the mean covariance over trials.
+#'
+#' @return List of aligned trials (same shapes as inputs).
+#'
+#' @examples
+#' \dontrun{
+#' tr <- replicate(5, matrix(rnorm(32*100), 32, 100), simplify = FALSE)
+#' out <- euclidean_alignment(tr)
+#' }
+#' @family domain-adaptation
+#' @export
+#'
+euclidean_alignment <- function(trials, target_R = NULL) {
+  stopifnot(is.list(trials) && length(trials) > 0)
+
+  covs <- lapply(trials, function(X) {
+    X <- as.matrix(X)
+    S <- X %*% t(X)
+    S / max(1, ncol(X) - 1)
+  })
+  R <- Reduce(`+`, covs) / length(covs)
+
+  mat_pow <- function(A, p) {
+    E <- eigen((A + t(A)) / 2, symmetric = TRUE)
+    E$vectors %*% diag((pmax(E$values, 1e-12))^p) %*% t(E$vectors)
+  }
+  Rm12 <- mat_pow(R, -0.5)
+  L <- if (is.null(target_R)) diag(nrow(R)) else mat_pow(target_R, 0.5)
+
+  lapply(trials, function(X) L %*% Rm12 %*% as.matrix(X))
+}
+
+
+#' Proxy A-Distance via Ridge LDA with K-Fold CV
+#'
+#' @description
+#' \code{proxy_a_distance} trains a ridge LDA classifier to separate domains and
+#' reports PAD \eqn{= 4\,\mathrm{acc} - 2 = 2(1 - 2\,\mathrm{err})}.
+#'
+#' @param Xs Numeric matrix (n_s × p): source.
+#' @param Xt Numeric matrix (n_t × p): target (same number of columns).
+#' @param folds Integer K for stratified CV. Default \code{5}.
+#' @param ridge Ridge added to pooled covariance. Default \code{1e-3}.
+#' @param seed Optional integer seed.
+#'
+#' @return List with \code{pad} and \code{err} (symmetrized error).
+#'
+#' @examples
+#' \dontrun{
+#' Xs <- matrix(rnorm(200), 20, 10); Xt <- matrix(rnorm(200, 1), 20, 10)
+#' proxy_a_distance(Xs, Xt)
+#' }
+#' @family domain-adaptation
+#' @export
+#'
+proxy_a_distance <- function(Xs, Xt, folds = 5, ridge = 1e-3, seed = NULL) {
+  Xs <- as.matrix(Xs); Xt <- as.matrix(Xt)
+  if (ncol(Xs) != ncol(Xt)) stop("Xs and Xt must have the same number of columns.")
+  X <- rbind(Xs, Xt)
+  y <- c(rep(0L, nrow(Xs)), rep(1L, nrow(Xt)))  # 0:source, 1:target
+
+  n <- nrow(X)
+  if (!is.null(seed)) set.seed(seed)
+  idx <- sample.int(n)
+  X <- X[idx, , drop = FALSE]; y <- y[idx]
+
+  # --- stratified folds (ensure at least 1 sample per class per fold) ---
+  idx0 <- which(y == 0L); idx1 <- which(y == 1L)
+  K <- max(2, min(folds, length(idx0), length(idx1)))
+  f0 <- split(sample(idx0), rep(1:K, length.out = length(idx0)))
+  f1 <- split(sample(idx1), rep(1:K, length.out = length(idx1)))
+  folds_idx <- lapply(seq_len(K), function(k) sort(c(f0[[k]], f1[[k]])))
+
+  # --- helpers: standardize & ridge-LDA ---
+  std_fit   <- function(A) list(mu = colMeans(A), sd = pmax(apply(A, 2, sd), 1e-8))
+  std_apply <- function(A, s) sweep(sweep(A, 2, s$mu, "-"), 2, s$sd, "/")
+
+  lda_fit <- function(A, yy, ridge = 1e-3) {
+    A0 <- A[yy == 0L, , drop = FALSE]; A1 <- A[yy == 1L, , drop = FALSE]
+    p  <- ncol(A)
+    S0 <- if (nrow(A0) > 1) stats::cov(A0) else matrix(0, p, p)
+    S1 <- if (nrow(A1) > 1) stats::cov(A1) else matrix(0, p, p)
+    Sp <- ((max(nrow(A0)-1,0) * S0 + max(nrow(A1)-1,0) * S1) / max(nrow(A)-2, 1)) + ridge * diag(p)
+    iSp <- solve(Sp)
+    mu0 <- colMeans(A0); mu1 <- colMeans(A1)
+    w <- as.numeric(iSp %*% (mu1 - mu0))
+    b <- -0.5 * (crossprod(mu1, iSp %*% mu1) - crossprod(mu0, iSp %*% mu0))
+    list(w = w, b = as.numeric(b))
+  }
+  lda_pred <- function(mod, A) as.integer(drop(A %*% mod$w + mod$b) >= 0)
+
+  # --- K-fold CV prediction ---
+  pred <- integer(n); pred[] <- NA_integer_
+  for (k in seq_len(K)) {
+    te <- folds_idx[[k]]
+    tr <- setdiff(seq_len(n), te)
+    # If a fold accidentally drops a class in training, skip it
+    if (length(unique(y[tr])) < 2L) next
+    s   <- std_fit(X[tr, , drop = FALSE])
+    Xtr <- std_apply(X[tr, , drop = FALSE], s)
+    Xte <- std_apply(X[te, , drop = FALSE], s)
+    mdl <- lda_fit(Xtr, y[tr], ridge = ridge)
+    pred[te] <- lda_pred(mdl, Xte)
+  }
+
+  # remove any NA (from rare skipped folds) and align y/pred
+  ok  <- which(!is.na(pred))
+  err <- mean(pred[ok] != y[ok])
+  err <- min(err, 1 - err)      # symmetric in domain labels
+  pad <- 2 * (1 - 2 * err)      # = 4*acc - 2  with acc = 1 - err
+  list(pad = pad, err = err)
+}
+
+
+#' Summarise Distribution Distances Between Domains
+#'
+#' @description
+#' \code{distanceSummary} computes selected metrics (PAD, MMD/MMD2, Energy,
+#' Wasserstein, Geodesic) between \code{source} and \code{target}.
+#'
+#' @param source Numeric matrix (n_s × p).
+#' @param target Numeric matrix (n_t × p).
+#' @param sigma Optional bandwidth for MMD; default \code{sigma_med(source, target)}.
+#' @param include Character vector of metrics to include.
+#' @param format \code{"list"} or \code{"table"}.
+#' @param pad_folds,pad_ridge,pad_seed Controls for \code{\link{proxy_a_distance}}.
+#'
+#' @return Named list or data frame with metric values; when \code{format="table"},
+#'   an attribute \code{sigma_used} is attached.
+#'
+#' @examples
+#' \dontrun{
+#' X <- matrix(rnorm(100), 20, 5); Y <- matrix(rnorm(100, 1), 20, 5)
+#' distanceSummary(X, Y, format = "table")
+#' }
+#' @family domain-adaptation
+#' @seealso \code{\link{compute_mmd}}, \code{\link{compute_wasserstein}}, \code{\link{compute_geodesic}}
+#' @export
+#'
+distanceSummary <- function(source, target, sigma = NULL,
+                            include = c("PAD","MMD2","Energy","MMD",
+                                        "Wasserstein","Geodesic"),
+                            format = c("list","table"),
+                            pad_folds = 5, pad_ridge = 1e-3, pad_seed = NULL) {
+
+  format <- match.arg(format)
+
+  .as_mat_num <- function(x, nm) {
+    if (is.data.frame(x)) x <- data.matrix(x)
+    x <- as.matrix(x)
+    storage.mode(x) <- "double"
+    if (!is.numeric(x)) stop(sprintf("%s must be numeric.", nm), call. = FALSE)
+    x
+  }
+
+  source <- .as_mat_num(source, "source")
+  target <- .as_mat_num(target, "target")
+
+  if (ncol(source) != ncol(target))
+    stop(sprintf("source/target must have same #cols (got %d vs %d).",
+                 ncol(source), ncol(target)), call. = FALSE)
+
+  if (is.null(sigma)) sigma <- DA4BCI::sigma_med(source, target)
+
+  pad  <- proxy_a_distance(source, target, folds = pad_folds,
+                           ridge = pad_ridge, seed = pad_seed)$pad
+  mmd2 <- DA4BCI::compute_mmd(source, target, sigma)
+  mmd  <- sqrt(max(mmd2, 0))
+
+  # Energy distance
+  energy <- if (exists("compute_energy", mode = "function")) {
+    get("compute_energy")(source, target)
+  } else {
+    pairwise_euclid <- function(A, B) {
+      aa <- rowSums(A^2)
+      bb <- rowSums(B^2)
+      D2 <- outer(aa, bb, "+") - 2 * (A %*% t(B)); D2[D2 < 0] <- 0; sqrt(D2)
     }
+    mean_offdiag <- function(D) {
+      n <- nrow(D); if (n <= 1) return(0)
+      sum(D[row(D) != col(D)]) / (n * (n - 1))
+    }
+    Dxy <- pairwise_euclid(source, target)
+    Dxx <- pairwise_euclid(source, source)
+    Dyy <- pairwise_euclid(target, target)
+    2 * mean(Dxy) - mean_offdiag(Dxx) - mean_offdiag(Dyy)
   }
 
-  norms <- colSums(Q^2)
-  keep_idx <- which(norms > 1e-8)
-  U_perp <- Q[, keep_idx, drop = FALSE]
+  wfun <- if (exists("compute_wasserstein", mode = "function")) get("compute_wasserstein") else NULL
+  gfun <- if (exists("compute_geodesic",    mode = "function")) get("compute_geodesic")    else NULL
+  wass <- if (!is.null(wfun)) wfun(source, target) else NA_real_
+  geod <- if (!is.null(gfun)) gfun(source, target) else NA_real_
 
-  if (ncol(U_perp) > (d - k)) {
-    U_perp <- U_perp[, 1:(d - k), drop = FALSE]
+  all_vals <- c(PAD = pad, MMD2 = mmd2, Energy = energy, MMD = mmd,
+                Wasserstein = wass, Geodesic = geod)
+  out_vals <- all_vals[intersect(include, names(all_vals))]
+
+  if (format == "list") {
+    as.list(out_vals)
+  } else {
+    out <- data.frame(Metric = names(out_vals), Value = as.numeric(out_vals), row.names = NULL)
+    attr(out, "sigma_used") <- sigma
+    out
   }
-
-  return(U_perp)
 }
 
-####################################
-#' Evaluate Distribution Shift
+
+
+#' Evaluate Distribution Shift Before/After Adaptation
 #'
 #' @description
-#' The \code{evaluate_shift} function computes two metrics (MMD and Wasserstein distance)
-#' to evaluate the distributional shift between \code{source_data} and \code{target_data},
-#' both before and after domain adaptation.
+#' \code{evaluate_shift} reports MMD and Wasserstein distances for original data
+#' and adapted data.
 #'
-#' @param source_data A numeric matrix representing the source domain data.
-#' @param target_data A numeric matrix representing the target domain data.
-#' @param adapted_source A numeric matrix representing the adapted source domain data.
-#' @param adapted_target A numeric matrix representing the adapted target domain data.
+#' @param source_data Numeric matrix (n_s × p) before adaptation.
+#' @param target_data Numeric matrix (n_t × p) before adaptation.
+#' @param adapted_source Numeric matrix: adapted source.
+#' @param adapted_target Numeric matrix: adapted target.
 #'
-#' @return A data frame with metrics (MMD, Wasserstein) and their values before
-#'   and after adaptation.
+#' @return Data frame with columns \code{Metric}, \code{Before}, and \code{After}.
 #'
 #' @examples
 #' \dontrun{
-#' source <- matrix(rnorm(200), nrow = 20, ncol = 10)
-#' target <- matrix(rnorm(200, mean = 2), nrow = 20, ncol = 10)
-#' adapted_source <- matrix(rnorm(200), nrow = 20, ncol = 10)
-#' adapted_target <- matrix(rnorm(200, mean = 1.5), nrow = 20, ncol = 10)
-#'
-#' results <- evaluate_shift(source, target, adapted_source, adapted_target)
-#' print(results)
+#' A <- matrix(rnorm(200), nrow = 20, ncol = 10)
+#' B <- matrix(rnorm(200, mean = 2), nrow = 20, ncol = 10)
+#' As <- matrix(rnorm(200), nrow = 20, ncol = 10)
+#' Bs <- matrix(rnorm(200, mean = 1.5), nrow = 20, ncol = 10)
+#' evaluate_shift(A, B, As, Bs)
 #' }
-#'
+#' @family domain-adaptation
+#' @seealso \code{\link{compute_mmd}}, \code{\link{compute_wasserstein}}
 #' @export
-####################################
-evaluate_shift <- function(
-    source_data, target_data,
-    adapted_source, adapted_target
-) {
-  mmd_before <- compute_mmd(source_data, target_data, sigma = 1)
+#'
+evaluate_shift <- function(source, target,
+                           adapted_source, adapted_target) {
+  mmd_before <- compute_mmd(source, target, sigma = 1)
   mmd_after <- compute_mmd(adapted_source, adapted_target, sigma = 1)
 
-  wasserstein_before <- compute_wasserstein(source_data, target_data)
+  wasserstein_before <- compute_wasserstein(source, target)
   wasserstein_after <- compute_wasserstein(adapted_source, adapted_target)
 
   data.frame(
@@ -153,66 +390,35 @@ evaluate_shift <- function(
   )
 }
 
-#####################################
-#' Visual Comparison of Data Before and After Domain Adaptation
+
+
+#' Visual Comparison Before/After Domain Adaptation
 #'
 #' @description
-#' The \code{plot_data_comparison} function provides a simple 2D visualization
-#' comparing source and target data distributions \emph{before} and \emph{after}
-#' a domain adaptation transform. It uses either PCA or t-SNE to reduce data to
-#' two dimensions for plotting.
+#' \code{plot_data_comparison} reduces to 2D via PCA or t-SNE and plots source/target
+#' distributions before and (optionally) after adaptation.
 #'
-#' @param source_data A numeric matrix of the source data (rows = observations),
-#'   before adaptation.
-#' @param target_data A numeric matrix of the target data, before adaptation,
-#'   with the same number of columns as \code{source_data}.
-#' @param Z_s (Optional) The source data after adaptation; if \code{NULL}, no
-#'   "after" plot is generated.
-#' @param Z_t (Optional) The target data after adaptation.
-#' @param description A character string to annotate the plot titles.
-#' @param method A character string indicating which dimensional reduction method
-#'   to apply for visualization. Choices are \code{"pca"} (default) or \code{"tsne"}.
+#' @param source_data Numeric matrix (n_s × p) before adaptation.
+#' @param target_data Numeric matrix (n_t × p) before adaptation.
+#' @param Z_s Optional numeric matrix: adapted source.
+#' @param Z_t Optional numeric matrix: adapted target.
+#' @param description Character string appended to plot titles.
+#' @param method Either \code{"pca"} (default) or \code{"tsne"}.
 #'
 #' @details
-#' \enumerate{
-#'   \item Merges \code{source_data} and \code{target_data}, applies either PCA
-#'     (\code{\link[stats]{prcomp}}) or t-SNE (\code{\link[Rtsne]{Rtsne}}) to map
-#'     them into 2D, then plots them as "Before."
-#'   \item If \code{Z_s} and \code{Z_t} are provided, merges and plots them as "After"
-#'     the adaptation transform.
-#' }
-#' This helps visually inspect how the adaptation influences the overlap or
-#' separation of the source and target.
+#' Concatenates domains, applies \code{\link[stats]{prcomp}} or \code{Rtsne::Rtsne},
+#' and returns \code{ggplot2} scatter plots.
 #'
-#' @return A list containing:
-#' \describe{
-#'   \item{\code{p1}}{The \code{ggplot2} object for the "before" distribution.}
-#'   \item{\code{p2}}{The \code{ggplot2} object for the "after" distribution
-#'     (only returned if \code{Z_s} and \code{Z_t} are not \code{NULL}).}
-#' }
+#' @return List with \code{p1} (before) and optionally \code{p2} (after), both \code{ggplot} objects.
 #'
 #' @examples
 #' \dontrun{
-#' library(ggplot2)
-#' set.seed(123)
-#' src <- matrix(rnorm(100), nrow=20, ncol=5)
-#' tgt <- matrix(rnorm(100, mean=3), nrow=20, ncol=5)
-#'
-#' # Plot only "before"
-#' p_list <- plot_data_comparison(src, tgt, description = "NoAdapt", method = "pca")
-#' print(p_list$p1)
-#'
-#' # Suppose Z_s and Z_t are aligned data
-#' Z_s <- src + 1
-#' Z_t <- tgt
-#' p_list2 <- plot_data_comparison(src, tgt, Z_s, Z_t,
-#'                                 description = "FakeAlign", method = "tsne")
-#' print(p_list2$p1)
-#' print(p_list2$p2)
+#' X <- matrix(rnorm(100), 20, 5); Y <- matrix(rnorm(100, 2), 20, 5)
+#' out <- plot_data_comparison(X, Y, method = "pca"); print(out$p1)
 #' }
-#'
+#' @family viz-monitoring
 #' @export
-#####################################
+#'
 plot_data_comparison <- function(source_data, target_data,
                                  Z_s = NULL, Z_t = NULL,
                                  description = "NULL",
@@ -268,259 +474,71 @@ plot_data_comparison <- function(source_data, target_data,
   list(p1 = p1, p2 = p2)
 }
 
-#####################################
-#' Robust Median‑Distance Estimator
+
+#' Page–Hinkley Change Detector: Initialize State
 #'
 #' @description
-#' The \code{sigma_med} function implements the so‑called *median
-#' heuristic* for selecting the bandwidth \eqn{\sigma} used in RBF (Gaussian)
-#' kernels or Maximum Mean Discrepancy (MMD) tests.
-#' It concatenates two data matrices \code{X} and \code{Y}, optionally
-#' subsamples at most \code{m} rows for efficiency, computes all pairwise
-#' Euclidean distances, and returns their median.  The routine is robust to
-#' very small sample sizes and to duplicated observations.
+#' \code{ph_init} initializes the internal state for the Page–Hinkley change
+#' detection test with exponential moving average.
 #'
-#' @param X A numeric matrix (\eqn{n_1 \times p}) whose rows are observations
-#'   and columns are features (e.g., source or training domain).
-#' @param Y A numeric matrix (\eqn{n_2 \times p}) with the same number of
-#'   columns as \code{X} (e.g., target or test domain).
-#' @param m An integer giving the maximum number of rows used to estimate the
-#'   median distance.  If \code{nrow(rbind(X, Y)) > m}, rows are sampled
-#'   uniformly without replacement; otherwise all rows are used.
-#' @param seed Optional integer.  When supplied, the random subsample is
-#'   reproducible via \code{\link[base]{set.seed}}.
+#' @param delta Insensitivity parameter for mean deviation.
+#' @param lambda Detection threshold.
+#' @param alpha Exponential moving average factor for the mean.
 #'
-#' @details
-#' \itemize{
-#'   \item When the combined sample size \eqn{N = n_1 + n_2} is \eqn{\le 2},
-#'         pairwise distances cannot be formed; the function returns
-#'         \code{NA_real_} and issues a warning.
-#'   \item If the median distance evaluates to zero (e.g., many duplicate
-#'         rows), a machine‑epsilon positive constant is returned instead to
-#'         avoid divide‑by‑zero errors in subsequent computations of
-#'         \eqn{1/(2\sigma^2)}.
-#' }
-#'
-#' @return A positive numeric scalar—the median Euclidean distance between
-#'   rows of \code{X} and \code{Y}.  Returns \code{NA_real_} if the sample
-#'   size is insufficient.
+#' @return List state to be passed to \code{\link{ph_update}}.
 #'
 #' @examples
-#' set.seed(42)
-#' X <- matrix(rnorm(100), nrow = 20, ncol = 5)
-#' Y <- matrix(rnorm(100, 2), nrow = 20, ncol = 5)
-#'
-#' # Use all rows (N <= m)
-#' sigma_all <- sigma_med(X, Y)
-#'
-#' # Subsample at most 15 rows
-#' sigma_sub <- sigma_med(X, Y, m = 15, seed = 1)
-#'
+#' \dontrun{
+#' s <- ph_init()
+#' }
+#' @family viz-monitoring
 #' @export
-#####################################
-sigma_med <- function(X, Y, m = 400, seed = NULL) {
-  # Optional reproducibility
-  stopifnot(ncol(X) == ncol(Y))
-  if (!is.null(seed)) set.seed(seed)
+#'
+ph_init <- function(delta = 0.005, lambda = 50, alpha = 0.999) {
+  list(mean = 0, cum = 0, min_cum = 0,
+       delta = delta, lambda = lambda,
+       alpha = alpha)
+}
 
-  # Combine domains
-  XY <- rbind(X, Y)
-  N  <- nrow(XY)
 
-  # Not enough points to form pairwise distances
-  if (N <= 2) {
-    warning("Not enough samples to compute pairwise distances; returning NA.")
-    return(NA_real_)
-  }
 
-  # Sub‑sample if necessary
-  if (N > m) {
-    idx <- sample.int(N, size = m, replace = FALSE)
-    XY  <- XY[idx, , drop = FALSE]
-  }
-
-  # Median Euclidean distance
-  d_med <- median(as.numeric(dist(XY, method = "euclidean")))
-
-  # Avoid zero bandwidth
-  if (d_med == 0) d_med <- .Machine$double.eps
-
-  d_med
+#' Page–Hinkley Change Detector: Update Step
+#'
+#' @description
+#' \code{ph_update} updates the Page–Hinkley state with a new observation and
+#' indicates whether a change is detected.
+#'
+#' @param state State list returned by \code{\link{ph_init}}.
+#' @param x New scalar observation.
+#'
+#' @return List with \code{state} (updated) and \code{change} (logical flag).
+#'
+#' @examples
+#' \dontrun{
+#' s <- ph_init()
+#' for (z in rnorm(100)) { tmp <- ph_update(s, z); s <- tmp$state }
+#' }
+#' @family viz-monitoring
+#' @export
+#'
+ph_update <- function(state, x) {
+  state$mean <- state$alpha * state$mean + (1 - state$alpha) * x
+  state$cum  <- state$cum + (x - state$mean - state$delta)
+  state$min_cum <- min(state$min_cum, state$cum)
+  changed <- (state$cum - state$min_cum) > state$lambda
+  list(state = state, change = changed)
 }
 
 
 
 
-
-# ==============================================================================
-# Ledoit-Wolf Covariance Function
-# Estimate a robust covariance matrix using shrinkage toward the identity
-# ==============================================================================
-LW_covariance <- function(x) {
-  n <- nrow(x)  # Number of observations
-  p <- ncol(x)  # Number of variables
-
-  # Center the data
-  x <- x - matrix(colMeans(x), n, p, TRUE)
-
-  # Compute the sample covariance matrix
-  S <- crossprod(x) / n
-
-  # Mean of the diagonal elements of the sample covariance
-  m <- mean(diag(S))
-
-  # Calculate d2 and bbar2 for shrinkage parameter lambda
-  d2 <- sum((S - diag(m, p))^2) / p
-  bbar2 <- (sum(rowSums(x^2)^2) - n * sum(S^2) ) / (p * n^2)
-  b2 <- min(bbar2, d2)
-
-  # Compute the Ledoit-Wolf shrinkage covariance matrix
-  rho <- b2 / d2
-  S <- (1-rho) * S
-  diag(S) <- diag(S) + rho * m
-  return(S)
-}
-
-# ==============================================================================
-# Compute the Riemannian mean of a set of symmetric positive definite (SPD) matrices
-# ==============================================================================
-riemannian_mean <- function(cov_matrices, max_iterations = 500,
-                            epsilon = 1e-5) {
-  if (is.list(cov_matrices))
-    cov_matrices <- simplify2array(cov_matrices)
-  # Number of covariance matrices
-  m <- dim(cov_matrices)[3]
-  n <- dim(cov_matrices)[1]
-
-  # Step 1: Initialize the Riemannian mean
-  # Use the element-wise mean of the covariance matrices as the initial estimate
-  P_omega <- rowMeans(cov_matrices, dims = 2L)
-
-  # Step 2: Iterate to refine the Riemannian mean
-  for (iteration in 1:max_iterations) {
-    # Step 2.1: Compute the square root and inverse square root of the mean matrix (P_omega)
-    eig <- eigen(P_omega, symmetric = TRUE)
-    sqrt_P_omega <- eig$vectors %*% (t(eig$vectors) * sqrt(eig$values))
-    inv_sqrt_P_omega <- eig$vectors %*% (t(eig$vectors) / sqrt(eig$values))
-
-    # Step 2.2: Compute the average in the tangent space (logarithmic map)
-    S <- matrix(0, n, n) # Initialize tangent space mean
-    for (i in 1:m) {
-      # Map each covariance matrix to the tangent space
-      eig <- eigen(inv_sqrt_P_omega %*% cov_matrices[, , i] %*%
-                     inv_sqrt_P_omega, symmetric = TRUE)
-
-      # Accumulate the log map
-      S <- S + (eig$vectors %*% (t(eig$vectors) * log(eig$values)))
-    }
-    S <- S / m # Average the log-mapped matrices
-
-    # Note: S does not require further transformation by sqrt_P_omega
-    # because it will be multiplied immediately after by inv_sqrt_P_omega
-    # in the exponential map (the two operations cancel each other)
-    PS <- P_omega %*% S # needed to check convergence
-
-    # Step 2.3: Map back to the SPD matrix space (exponential map)
-    eig <- eigen(S, symmetric = TRUE)
-    P_omega <- sqrt_P_omega %*% eig$vectors %*%
-      (t(eig$vectors) * exp(eig$values)) %*% sqrt_P_omega
-
-    # Step 2.4: Check for convergence
-    # Convergence is measured by the Frobenius norm of the product of P_omega and S
-    if (sqrt(sum(PS * t(PS))) < epsilon) break
-  }
-
-  # Step 3: Return the Riemannian mean
-  return(P_omega)
-}
+# helper: define %||% if not already defined
+`%||%` <- function(a, b) if (!is.null(a)) a else b
 
 
 
-# ==============================================================================
-# Logarithmic Map Function
-# Project matrix P_i to tangent space at reference point P_omega
-# ==============================================================================
-log_map <- function(P_omega, P_i) {
-  # Project P_i onto the tangent space at P_omega
-  if (is.list(P_omega)) {
-    sqrt_P_omega <- P_omega[["sqrt"]]
-    inv_sqrt_P_omega <- P_omega[["inv_sqrt"]]
-  } else {
-    eig <- eigen(P_omega, symmetric = TRUE)
-    sqrt_P_omega <- eig$vectors %*% diag(sqrt(eig$values)) %*% t(eig$vectors)
-    inv_sqrt_P_omega <- eig$vectors %*% diag(1 / sqrt(eig$values)) %*% t(eig$vectors)
-  }
 
-  # Map P_i into the tangent space of P_omega
-  w <- inv_sqrt_P_omega %*% P_i %*% inv_sqrt_P_omega
-  eig_w <- eigen(w, symmetric = TRUE)
-  log_w <- eig_w$vectors %*% diag(log(eig_w$values)) %*% t(eig_w$vectors)
 
-  # Project back to the original space
-  result <- sqrt_P_omega %*% log_w %*% sqrt_P_omega
-  return(result)
-}
 
-# ==============================================================================
-# Riemannian Exponential Map Function
-# Project tangent vector S_i back to SPD manifold at P_omega
-# ==============================================================================
-exp_map <- function(P_omega, S_i) {
-  # Extract or calculate the square root and inverse square root of P_omega
-  if (is.list(P_omega)) {
-    sqrt_P_omega <- P_omega[["sqrt"]]
-    inv_sqrt_P_omega <- P_omega[["inv_sqrt"]]
-  } else {
-    eig <- eigen(P_omega, symmetric = TRUE)
-    sqrt_P_omega <- eig$vectors %*% diag(sqrt(eig$values)) %*% t(eig$vectors)
-    inv_sqrt_P_omega <- eig$vectors %*% diag(1 / sqrt(eig$values)) %*% t(eig$vectors)
-  }
-
-  # Project S_i into the tangent space of P_omega
-  w <- inv_sqrt_P_omega %*% S_i %*% inv_sqrt_P_omega
-  eig_w <- eigen(w, symmetric = TRUE)
-
-  # Compute the matrix exponential in the tangent space
-  exp_w <- eig_w$vectors %*% diag(exp(eig_w$values)) %*% t(eig_w$vectors)
-
-  # Map back to the original space
-  result <- sqrt_P_omega %*% exp_w %*% sqrt_P_omega
-  return(result)
-}
-
-# ==============================================================================
-# Align source covariances to target geometry via Riemannian transport
-# ==============================================================================
-align_riemannian_transport <- function(cov_S, cov_T) {
-  if (length(cov_S) == 1) cov_S <- c(cov_S, cov_S)
-  if (length(cov_T) == 1) cov_T <- c(cov_T, cov_T)
-
-  mean_S <- riemannian_mean(cov_S)
-  mean_T <- riemannian_mean(cov_T)
-
-  lapply(cov_S, function(C) {
-    exp_map(mean_T, log_map(mean_S, C))
-  })
-}
-
-# ==============================================================================
-# Matrix power computation for SPD matrices
-# ==============================================================================
-matrix_power <- function(A, pow) {
-  A <- 0.5 * (A + t(A))
-
-  ## Short-cuts for common cases
-  if (pow ==  1)  return(A)
-  if (pow ==  0)  return(diag(nrow(A)))
-  if (pow == -1)  return(solve(A))
-
-  ## Eigendecomposition (symmetric -> guaranteed real/orthonormal V)
-  E <- eigen(A, symmetric = TRUE, only.values = FALSE)
-  vals <- pmax(E$values, 1e-8)         # clamp tiny / negative eigenvalues
-
-  ## Avoid allocating a full diag(): scale columns of V, then tcrossprod
-  Vscaled <- E$vectors * rep(vals ^ (pow / 2), each = nrow(E$vectors))
-  tcrossprod(Vscaled)                  # == V %*% diag(vals^pow) %*% t(V)
-}
 
 

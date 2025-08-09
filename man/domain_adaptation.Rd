@@ -128,5 +128,5 @@ IEEE Transactions on Biomedical Engineering, 65(5), 1107-1116.
 \code{\link{domain_adaptation_mida}}, \code{\link{domain_adaptation_riemannian}},
 \code{\link{domain_adaptation_coral}}, \code{\link{domain_adaptation_gfk}},
 \code{\link{domain_adaptation_art}}, \code{\link{domain_adaptation_pt}},
-\code{\link{domain_adaptation_m3d}}
+\code{\link{domain_adaptation_m3d}}, \code{\link{domain_adaptation_ot}}
 }

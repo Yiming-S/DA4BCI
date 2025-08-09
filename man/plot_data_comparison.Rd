@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{plot_data_comparison}
 \alias{plot_data_comparison}
-\title{Visual Comparison of Data Before and After Domain Adaptation}
+\title{Visual Comparison Before/After Domain Adaptation}
 \usage{
 plot_data_comparison(
   source_data,
@@ -14,65 +14,38 @@ plot_data_comparison(
 )
 }
 \arguments{
-\item{source_data}{A numeric matrix of the source data (rows = observations),
-before adaptation.}
+\item{source_data}{Numeric matrix (n_s × p) before adaptation.}
 
-\item{target_data}{A numeric matrix of the target data, before adaptation,
-with the same number of columns as \code{source_data}.}
+\item{target_data}{Numeric matrix (n_t × p) before adaptation.}
 
-\item{Z_s}{(Optional) The source data after adaptation; if \code{NULL}, no
-"after" plot is generated.}
+\item{Z_s}{Optional numeric matrix: adapted source.}
 
-\item{Z_t}{(Optional) The target data after adaptation.}
+\item{Z_t}{Optional numeric matrix: adapted target.}
 
-\item{description}{A character string to annotate the plot titles.}
+\item{description}{Character string appended to plot titles.}
 
-\item{method}{A character string indicating which dimensional reduction method
-to apply for visualization. Choices are \code{"pca"} (default) or \code{"tsne"}.}
+\item{method}{Either \code{"pca"} (default) or \code{"tsne"}.}
 }
 \value{
-A list containing:
-\describe{
-\item{\code{p1}}{The \code{ggplot2} object for the "before" distribution.}
-\item{\code{p2}}{The \code{ggplot2} object for the "after" distribution
-(only returned if \code{Z_s} and \code{Z_t} are not \code{NULL}).}
-}
+List with \code{p1} (before) and optionally \code{p2} (after), both \code{ggplot} objects.
 }
 \description{
-The \code{plot_data_comparison} function provides a simple 2D visualization
-comparing source and target data distributions \emph{before} and \emph{after}
-a domain adaptation transform. It uses either PCA or t-SNE to reduce data to
-two dimensions for plotting.
+\code{plot_data_comparison} reduces to 2D via PCA or t-SNE and plots source/target
+distributions before and (optionally) after adaptation.
 }
 \details{
-\enumerate{
-\item Merges \code{source_data} and \code{target_data}, applies either PCA
-(\code{\link[stats]{prcomp}}) or t-SNE (\code{\link[Rtsne]{Rtsne}}) to map
-them into 2D, then plots them as "Before."
-\item If \code{Z_s} and \code{Z_t} are provided, merges and plots them as "After"
-the adaptation transform.
-}
-This helps visually inspect how the adaptation influences the overlap or
-separation of the source and target.
+Concatenates domains, applies \code{\link[stats]{prcomp}} or \code{Rtsne::Rtsne},
+and returns \code{ggplot2} scatter plots.
 }
 \examples{
 \dontrun{
-library(ggplot2)
-set.seed(123)
-src <- matrix(rnorm(100), nrow=20, ncol=5)
-tgt <- matrix(rnorm(100, mean=3), nrow=20, ncol=5)
-
-# Plot only "before"
-p_list <- plot_data_comparison(src, tgt, description = "NoAdapt", method = "pca")
-print(p_list$p1)
-
-# Suppose Z_s and Z_t are aligned data
-Z_s <- src + 1
-Z_t <- tgt
-p_list2 <- plot_data_comparison(src, tgt, Z_s, Z_t,
-                                description = "FakeAlign", method = "tsne")
-print(p_list2$p1)
-print(p_list2$p2)
+X <- matrix(rnorm(100), 20, 5); Y <- matrix(rnorm(100, 2), 20, 5)
+out <- plot_data_comparison(X, Y, method = "pca"); print(out$p1)
 }
-
 }
+\seealso{
+Other viz-monitoring: 
+\code{\link{ph_init}()},
+\code{\link{ph_update}()}
+}
+\concept{viz-monitoring}

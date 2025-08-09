@@ -100,7 +100,7 @@
 #'   \code{\link{domain_adaptation_mida}}, \code{\link{domain_adaptation_riemannian}},
 #'   \code{\link{domain_adaptation_coral}}, \code{\link{domain_adaptation_gfk}},
 #'   \code{\link{domain_adaptation_art}}, \code{\link{domain_adaptation_pt}},
-#'   \code{\link{domain_adaptation_m3d}}
+#'   \code{\link{domain_adaptation_m3d}}, \code{\link{domain_adaptation_ot}}
 #'
 #' @examples
 #' # Simulate data
@@ -131,9 +131,6 @@ domain_adaptation <- function(source_data,
   method <- match.arg(method,
                       choices = c("tca", "sa", "mida", "rd",
                                   "coral", "gfk", "art", "pt", "m3d"))
-
-  # helper: a %||% b   → b is used only when a is NULL
-  `%||%` <- function(a, b) if (!is.null(a)) a else b
 
   #TCA
   if (method == "tca") {
@@ -176,9 +173,17 @@ domain_adaptation <- function(source_data,
     return(domain_adaptation_art(source_data, target_data))
 
     # PT
-  } else if (method == "pt") {                  # two-argument ART routine
+  } else if (method == "pt") {
     return(domain_adaptation_pt(source_data, target_data))
 
+    # OT
+  } else if (method == "ot") {      # Entropy-Regularized OT (Sinkhorn–Knopp) with Barycentric Mapping
+    eps     <- control$eps    %||% 0.05
+    maxit   <- control$maxit  %||% 500
+    tol     <- control$tol    %||% 1e-7
+    cost    <- control$cost   %||% "sqeuclidean"
+    return(domain_adaptation_pt(source_data, target_data, eps = eps, maxit = maxit,
+                                tol = tol, cost = cost))
     # M3D
   } else if (method == "m3d") {
 
