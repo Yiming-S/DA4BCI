@@ -10,7 +10,7 @@ domain_adaptation_ot(
   eps = 0.05,
   maxit = 500,
   tol = 1e-07,
-  cost = "sqeuclidean"
+  cost = c("sqeuclidean", "euclidean")
 )
 }
 \arguments{
@@ -18,13 +18,13 @@ domain_adaptation_ot(
 
 \item{target_data}{A numeric matrix of size \eqn{m \times d} (target samples by features).}
 
-\item{control}{A list of control parameters:
-\describe{
-\item{\code{eps}}{Positive entropy regularization parameter (default \code{0.05}).}
-\item{\code{maxit}}{Maximum Sinkhorn iterations (default \code{500}).}
-\item{\code{tol}}{Stopping tolerance on marginal feasibility (default \code{1e-7}).}
-\item{\code{cost}}{Cost type: \code{"sqeuclidean"} (default) or \code{"euclidean"}.}
-}}
+\item{eps}{Positive entropy regularization parameter (default \code{0.05}).}
+
+\item{maxit}{Maximum Sinkhorn iterations (default \code{500}).}
+
+\item{tol}{Stopping tolerance on marginal feasibility (default \code{1e-7}).}
+
+\item{cost}{Cost type: \code{"sqeuclidean"} (default) or \code{"euclidean"}.}
 }
 \value{
 A list containing:
@@ -58,17 +58,20 @@ weighted by the corresponding row of \eqn{P}.
 \examples{
 \dontrun{
 set.seed(123)
-Xs <- matrix(rnorm(200), nrow = 20, ncol = 5)
-Xt <- matrix(rnorm(180, mean = 1), nrow = 18, ncol = 5)
-res <- domain_adaptation_ot(Xs, Xt, eps = 0.05, maxit = 1000, tol = 1e-8)
-str(res$weighted_source_data)  # 20 x 5 matrix
+src <- matrix(rnorm(100), nrow = 20, ncol = 5)
+tgt <- matrix(rnorm(100, mean = 2), nrow = 20, ncol = 5)
+
+ot_result <- domain_adaptation_ot(src, tgt, eps = 0.05, maxit = 1000, tol = 1e-8)
+aligned_source <- ot_result$weighted_source_data
+aligned_target <- ot_result$target_data
+dim(aligned_source)  # 20 x 5
+dim(aligned_target)  # 20 x 5
 }
 
 }
 \references{
 Cuturi, M. (2013). Sinkhorn Distances: Lightspeed Computation of Optimal Transport.
-\emph{Advances in Neural Information Processing Systems}, 26.
-
-Courty, N., Flamary, R., Tuia, D., & Rakotomamonjy, A. (2017). Optimal Transport for Domain Adaptation.
-\emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 39(9), 1853–1865.
+Advances in Neural Information Processing Systems, 26.
+Courty, N., Flamary, R., Tuia, D., & Rakotomamonjy, A. (2017).
+Optimal Transport for Domain Adaptation. IEEE TPAMI, 39(9), 1853–1865.
 }

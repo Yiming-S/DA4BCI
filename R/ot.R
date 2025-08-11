@@ -10,13 +10,10 @@
 #'
 #' @param source_data A numeric matrix of size \eqn{n \times d} (source samples by features).
 #' @param target_data A numeric matrix of size \eqn{m \times d} (target samples by features).
-#' @param control A list of control parameters:
-#' \describe{
-#'   \item{\code{eps}}{Positive entropy regularization parameter (default \code{0.05}).}
-#'   \item{\code{maxit}}{Maximum Sinkhorn iterations (default \code{500}).}
-#'   \item{\code{tol}}{Stopping tolerance on marginal feasibility (default \code{1e-7}).}
-#'   \item{\code{cost}}{Cost type: \code{"sqeuclidean"} (default) or \code{"euclidean"}.}
-#' }
+#' @param eps  Positive entropy regularization parameter (default \code{0.05}).
+#' @param maxit Maximum Sinkhorn iterations (default \code{500}).
+#' @param tol  Stopping tolerance on marginal feasibility (default \code{1e-7}).
+#' @param cost Cost type: \code{"sqeuclidean"} (default) or \code{"euclidean"}.
 #'
 #' @return A list containing:
 #' \describe{
@@ -42,89 +39,88 @@
 #' @examples
 #' \dontrun{
 #' set.seed(123)
-#' Xs <- matrix(rnorm(200), nrow = 20, ncol = 5)
-#' Xt <- matrix(rnorm(180, mean = 1), nrow = 18, ncol = 5)
-#' res <- domain_adaptation_ot(Xs, Xt, eps = 0.05, maxit = 1000, tol = 1e-8)
-#' str(res$weighted_source_data)  # 20 x 5 matrix
+#' src <- matrix(rnorm(100), nrow = 20, ncol = 5)
+#' tgt <- matrix(rnorm(100, mean = 2), nrow = 20, ncol = 5)
+#'
+#' ot_result <- domain_adaptation_ot(src, tgt, eps = 0.05, maxit = 1000, tol = 1e-8)
+#' aligned_source <- ot_result$weighted_source_data
+#' aligned_target <- ot_result$target_data
+#' dim(aligned_source)  # 20 x 5
+#' dim(aligned_target)  # 20 x 5
 #' }
 #'
 #' @references
 #' Cuturi, M. (2013). Sinkhorn Distances: Lightspeed Computation of Optimal Transport.
-#' \emph{Advances in Neural Information Processing Systems}, 26.
-#'
-#' Courty, N., Flamary, R., Tuia, D., & Rakotomamonjy, A. (2017). Optimal Transport for Domain Adaptation.
-#' \emph{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 39(9), 1853–1865.
-#'
+#' Advances in Neural Information Processing Systems, 26.
+#' Courty, N., Flamary, R., Tuia, D., & Rakotomamonjy, A. (2017).
+#' Optimal Transport for Domain Adaptation. IEEE TPAMI, 39(9), 1853–1865.
 #'
 #' @export
 #####################################
 domain_adaptation_ot <- function(source_data, target_data,
-                                 eps = 0.05, maxit = 500,
-                                 tol = 1e-7, cost = "sqeuclidean") {
+                                 eps = 0.05, maxit = 500, tol = 1e-7,
+                                 cost = c("sqeuclidean", "euclidean")) {
 
-  Xs <- as.matrix(source_data)
-  Xt <- as.matrix(target_data)
-  if (!is.numeric(Xs) || !is.numeric(Xt)) {
-    stop("source_data and target_data must be numeric matrices.")
-  }
-  if (ncol(Xs) != ncol(Xt)) {
-    stop("source_data and target_data must have the same number of columns (features).")
-  }
+  cost <- match.arg(cost)
+
+  # --- inputs & shape checks ---
+  Xs <- as.matrix(source_data); storage.mode(Xs) <- "double"
+  Xt <- as.matrix(target_data); storage.mode(Xt) <- "double"
+  if (!is.numeric(Xs) || !is.numeric(Xt))
+    stop("source_data/target_data must be numeric matrices.")
+  if (ncol(Xs) != ncol(Xt))
+    stop("source_data/target_data must have the same number of columns.")
   n <- nrow(Xs); m <- nrow(Xt)
-  if (n == 0L || m == 0L) stop("source_data and target_data must have at least one row.")
+  if (n == 0L || m == 0L)
+    stop("source_data/target_data must have at least one row.")
+  if (!is.numeric(eps) || eps <= 0) stop("'eps' must be positive.")
+  maxit <- as.integer(maxit)
 
-
-  # Step 2: Cost matrix (vectorized)
+  # --- cost matrix C ---
   # Squared Euclidean: ||x - y||^2 = ||x||^2 + ||y||^2 - 2 x y^T
   XXs <- rowSums(Xs * Xs)
   XXt <- rowSums(Xt * Xt)
   Csq <- outer(XXs, XXt, "+") - 2 * (Xs %*% t(Xt))
-  Csq <- pmax(Csq, 0)  # numerical safety against tiny negatives
-  C   <- if (identical(cost, "euclidean")) sqrt(Csq) else Csq
+  Csq <- pmax(Csq, 0)  # numeric safeguard
+  C   <- if (cost == "euclidean") sqrt(Csq) else Csq
 
-  # Step 3: Sinkhorn–Knopp (balanced, uniform marginals)
-  r <- rep(1 / n, n)
-  c <- rep(1 / m, m)
+  # --- Sinkhorn–Knopp (balanced, uniform marginals) ---
+  r <- rep(1 / n, n)   # source marginal
+  c <- rep(1 / m, m)   # target marginal
 
-  # Gibbs kernel; floor to avoid exact zeros
+  # Gibbs kernel K = exp(-C/eps) with a tiny floor to avoid zeros
   K <- exp(-C / eps)
   tiny <- .Machine$double.xmin
   K[K < tiny] <- tiny
 
-  # Initialize scalings
+  # Scaling vectors (always numeric vectors)
   u <- rep(1, n)
   v <- rep(1, m)
 
-  # Iterate until marginals match within tol
   residual <- Inf
   iters <- 0L
   for (iter in seq_len(maxit)) {
     iters <- iter
+    Kv <- as.numeric(K %*% v);             Kv[!is.finite(Kv) | Kv <= tiny] <- tiny
+    u  <- r / Kv
+    Ktu <- as.numeric(t(K) %*% u);          Ktu[!is.finite(Ktu) | Ktu <= tiny] <- tiny
+    v  <- c / Ktu
 
-    Kv <- K %*% v
-    Kv[!is.finite(Kv) | Kv <= tiny] <- tiny
-    u <- r / Kv
+    # Coupling (P = diag(u) K diag(v)) via elementwise outer product
+    P <- (u %o% v) * K
 
-    Ktu <- t(K) %*% u
-    Ktu[!is.finite(Ktu) | Ktu <= tiny] <- tiny
-    v <- c / Ktu
-
-    # Current coupling and marginal residual
-    P <- (u * K) * rep(v, each = n)
-    residual <- max(
-      max(abs(rowSums(P) - r)),
-      max(abs(colSums(P) - c))
-    )
-    if (residual <= tol) break
+    # L-infinity marginal residual
+    residual <- max(max(abs(rowSums(P) - r)), max(abs(colSums(P) - c)))
+    if (!is.finite(residual) || residual <= tol) break
   }
-  converged <- residual <= tol
+  converged <- is.finite(residual) && residual <= tol
 
-  # Step 4: Barycentric mapping of source toward target
-  rs <- rowSums(P) + tiny  # avoid division by zero
-  Xs_map <- (P %*% Xt) / rs
+  # --- barycentric mapping: Xs -> (P Xt) / (P 1) ---
+  rs <- rowSums(P); rs[!is.finite(rs) | rs <= tiny] <- tiny
+  Xs_map <- sweep(P %*% Xt, 1, rs, "/")
 
-  # Step 5: Return results
-  return(list(
+  # --- return ---
+  list(
     weighted_source_data = Xs_map,
     target_data          = Xt,
     ot_plan              = P,
@@ -133,5 +129,5 @@ domain_adaptation_ot <- function(source_data, target_data,
     iterations           = iters,
     converged            = converged,
     residual             = residual
-  ))
+  )
 }
