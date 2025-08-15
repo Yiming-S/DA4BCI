@@ -11,6 +11,7 @@
 - **ART (Aligned Riemannian Transport)**
 - **PT (Parallel Transport)**
 - **M3D (Manifold-based Multi-step Domain Adaptation)**
+- **OT (Entropy-Regularized OT (Sinkhorn–Knopp) with Barycentric Mapping)**
 
 These methods help align EEG data from different sessions or subjects, mitigating distributional shifts and enabling more robust learning.
 
