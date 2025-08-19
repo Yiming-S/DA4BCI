@@ -130,7 +130,7 @@ domain_adaptation <- function(source_data,
 
   method <- match.arg(method,
                       choices = c("tca", "sa", "mida", "rd",
-                                  "coral", "gfk", "art", "pt", "m3d"))
+                                  "coral", "gfk", "art", "pt", "m3d", "ot"))
 
   #TCA
   if (method == "tca") {
