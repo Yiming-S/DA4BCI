@@ -182,7 +182,7 @@ domain_adaptation <- function(source_data,
     maxit   <- control$maxit  %||% 500
     tol     <- control$tol    %||% 1e-7
     cost    <- control$cost   %||% "sqeuclidean"
-    return(domain_adaptation_pt(source_data, target_data, eps = eps, maxit = maxit,
+    return(domain_adaptation_ot(source_data, target_data, eps = eps, maxit = maxit,
                                 tol = tol, cost = cost))
     # M3D
   } else if (method == "m3d") {
