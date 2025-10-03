@@ -1,21 +1,25 @@
 Package: DA4BCI
-Title: Domain Adaptation Methods for EEG-based BCI
-Version: 0.0.1
+Title: A Unified Framework for Domain Adaptation in EEG-based BCI
+Version: 0.1.0
 Authors@R:
     c(
-        person("Yiming", "Shen", email = "yiming.shen001@umb.edu", role = c("aut", "cre")),
-        person("David", "Degras", email = "david.degras@umb.edu", role = "aut")
+        person("Yiming", "Shen", email = "yiming.shen001@umb.edu", role = c("aut", "cre"),
+               comment = c(ORCID = "0009-0004-6282-3755")),
+        person("David", "Degras", email = "david.degras@umb.edu", role = "aut",
+               comment = c(ORCID = "0000-0002-7221-584X"))
     )
 Description: 
-  This package provides a suite of domain adaptation methods tailored for 
-  EEG-based brain-computer interface (BCI) applications. It implements a unified 
-  interface to apply Transfer Component Analysis (TCA), Subspace Alignment (SA), 
-  Maximum Independence Domain Adaptation (MIDA), Riemannian Distance (RD), 
-  Correlation Alignment (CORAL), and Geodesic Flow Kernel (GFK). By aligning EEG 
-  signals across sessions or subjects, these methods help mitigate distribution 
-  shifts, facilitating more robust and accurate machine learning for BCI tasks.
-  The package also offers convenient utilities for evaluation and visualization 
-  of adaptation results.
+    Provides a comprehensive suite of domain adaptation methods tailored for 
+    EEG-based brain-computer interface (BCI) applications. The package offers 
+    a unified interface for numerous algorithms, including Transfer Component 
+    Analysis (TCA), Subspace Alignment (SA), Maximum Independence Domain 
+    Adaptation (MIDA), Correlation Alignment (CORAL), Geodesic Flow Kernel (GFK), 
+    Aligned Riemannian Transport (ART), Parallel Transport (PT), Manifold-based 
+    Multi-step Domain Adaptation (M3D), and Optimal Transport (OT). It also 
+    includes a robust evaluation framework with functions to compute key 
+    distance metrics like Maximum Mean Discrepancy (MMD), Wasserstein Distance, 
+    and Energy Distance. These tools help align EEG distributions across 
+    sessions or subjects to mitigate data shifts and improve model robustness.
 Depends: 
     R (>= 3.5.0),
     ggplot2,
