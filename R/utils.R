@@ -260,7 +260,7 @@ proxy_a_distance <- function(Xs, Xt, folds = 5, ridge = 1e-3, seed = NULL) {
 #'
 #' @description
 #' \code{distanceSummary} computes selected metrics (PAD, MMD/MMD2, Energy,
-#' Wasserstein, Geodesic) between \code{source} and \code{target}.
+#' Wasserstein, Geodesic, Mahalanobis) between \code{source} and \code{target}.
 #'
 #' @param source Numeric matrix (n_s × p).
 #' @param target Numeric matrix (n_t × p).
@@ -276,19 +276,22 @@ proxy_a_distance <- function(Xs, Xt, folds = 5, ridge = 1e-3, seed = NULL) {
 #' \dontrun{
 #' X <- matrix(rnorm(100), 20, 5); Y <- matrix(rnorm(100, 1), 20, 5)
 #' distanceSummary(X, Y, format = "table")
+#' distanceSummary(X, Y, include = c("PAD","MMD2","Energy","MMD",
+#'                                   "Wasserstein","Geodesic","Mahalanobis"))
 #' }
 #' @family domain-adaptation
-#' @seealso \code{\link{compute_mmd}}, \code{\link{compute_wasserstein}}, \code{\link{compute_geodesic}}
+#' @seealso \code{\link{compute_mmd}}, \code{\link{compute_wasserstein}},
+#'   \code{\link{compute_geodesic}}, \code{\link{compute_mahalanobis}}, \code{\link{compute_energy}}
 #' @export
-#'
 distanceSummary <- function(source, target, sigma = NULL,
                             include = c("PAD","MMD2","Energy","MMD",
-                                        "Wasserstein","Geodesic"),
+                                        "Wasserstein","Geodesic","Mahalanobis"),
                             format = c("list","table"),
                             pad_folds = 5, pad_ridge = 1e-3, pad_seed = NULL) {
 
   format <- match.arg(format)
 
+  # Helper: coerce to numeric matrix
   .as_mat_num <- function(x, nm) {
     if (is.data.frame(x)) x <- data.matrix(x)
     x <- as.matrix(x)
@@ -304,17 +307,22 @@ distanceSummary <- function(source, target, sigma = NULL,
     stop(sprintf("source/target must have same #cols (got %d vs %d).",
                  ncol(source), ncol(target)), call. = FALSE)
 
+  # Kernel bandwidth for MMD
   if (is.null(sigma)) sigma <- DA4BCI::sigma_med(source, target)
 
+  # Proxy A-distance (PAD)
   pad  <- proxy_a_distance(source, target, folds = pad_folds,
                            ridge = pad_ridge, seed = pad_seed)$pad
+
+  # MMD^2 and MMD (RBF)
   mmd2 <- DA4BCI::compute_mmd(source, target, sigma)
   mmd  <- sqrt(max(mmd2, 0))
 
-  # Energy distance
+  # Energy distance (prefer existing implementation)
   energy <- if (exists("compute_energy", mode = "function")) {
     get("compute_energy")(source, target)
   } else {
+    # Minimal fallback using Euclidean pairwise distances
     pairwise_euclid <- function(A, B) {
       aa <- rowSums(A^2)
       bb <- rowSums(B^2)
@@ -330,14 +338,51 @@ distanceSummary <- function(source, target, sigma = NULL,
     2 * mean(Dxy) - mean_offdiag(Dxx) - mean_offdiag(Dyy)
   }
 
+  # Wasserstein-1
   wfun <- if (exists("compute_wasserstein", mode = "function")) get("compute_wasserstein") else NULL
-  gfun <- if (exists("compute_geodesic",    mode = "function")) get("compute_geodesic")    else NULL
   wass <- if (!is.null(wfun)) wfun(source, target) else NA_real_
+
+  # Geodesic subspace distance
+  gfun <- if (exists("compute_geodesic", mode = "function")) get("compute_geodesic") else NULL
   geod <- if (!is.null(gfun)) gfun(source, target) else NA_real_
 
-  all_vals <- c(PAD = pad, MMD2 = mmd2, Energy = energy, MMD = mmd,
-                Wasserstein = wass, Geodesic = geod)
-  out_vals <- all_vals[intersect(include, names(all_vals))]
+  # Mahalanobis mean-distance
+  mlfun <- if (exists("compute_mahalanobis", mode = "function")) get("compute_mahalanobis") else NULL
+  maha  <- if (!is.null(mlfun)) {
+    # Defaults: pooled covariance, no shrinkage, non-squared distance
+    mlfun(source, target)
+  } else {
+    # Robust fallback without external dependency
+    .mahal_fallback <- function(X, Y, ridge = 1e-6) {
+      mux <- colMeans(X); muy <- colMeans(Y)
+      Sx  <- stats::cov(X);  Sy  <- stats::cov(Y)
+      nx  <- nrow(X); ny <- nrow(Y); p <- ncol(X)
+      S <- if (nx + ny - 2 > 0) ((nx - 1) * Sx + (ny - 1) * Sy) / (nx + ny - 2) else Sx
+      S <- 0.5 * (S + t(S))
+      trp <- sum(diag(S)) / p
+      S <- S + ridge * trp * diag(p)
+      eig <- eigen(S, symmetric = TRUE)
+      eps <- .Machine$double.eps^0.5
+      eig$values[eig$values < eps] <- eps
+      SInv <- eig$vectors %*% (diag(1 / eig$values)) %*% t(eig$vectors)
+      d <- mux - muy
+      sqrt(as.numeric(t(d) %*% SInv %*% d))
+    }
+    .mahal_fallback(source, target)
+  }
+
+  # Collect and filter
+  all_vals <- c(PAD = pad,
+                MMD2 = mmd2,
+                Energy = energy,
+                MMD = mmd,
+                Wasserstein = wass,
+                Geodesic = geod,
+                Mahalanobis = maha)
+
+  # Keep only requested metrics, preserving order in `include`
+  keep <- intersect(include, names(all_vals))
+  out_vals <- all_vals[keep]
 
   if (format == "list") {
     as.list(out_vals)

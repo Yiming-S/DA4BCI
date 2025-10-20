@@ -288,6 +288,94 @@ compute_wasserstein <- function(source, target) {
 
 
 
+#' Mahalanobis distance between two datasets (means with pooled/selected covariance)
+#'
+#' @description
+#' compute_mahalanobis measures the distance between the source and target
+#' mean vectors under a Mahalanobis metric induced by a chosen covariance
+#' (pooled/source/target). It includes optional shrinkage and a small ridge
+#' for numerical stability in medium/high dimensions.
+#'
+#' @param source Numeric matrix (n_s × p): source samples.
+#' @param target Numeric matrix (n_t × p): target samples.
+#' @param covChoice Character, one of c("pooled","source","target"); default "pooled".
+#' @param shrinkage_alpha Optional scalar in [0,1]; shrinkage toward spherical target
+#'   (tr(S)/p) * I. Use small values like 0.05 ~ 0.2 if n is small or p is large.
+#' @param ridge Nonnegative scalar ridge added as (ridge * tr(S)/p) * I. Default 1e-6.
+#' @param squared Logical; if TRUE, return squared distance. Default FALSE.
+#'
+#' @return A single numeric distance (Mahalanobis) between the two domains.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#'   set.seed(1)
+#'   X <- matrix(rnorm(200), 20, 10)
+#'   Y <- matrix(rnorm(150, 0.5), 15, 10)
+#'   compute_mahalanobis(X, Y)                         # pooled covariance
+#'   compute_mahalanobis(X, Y, covChoice = "source")   # source covariance
+#'   compute_mahalanobis(X, Y, shrinkage_alpha = 0.1)  # mild shrinkage
+#' }
+compute_mahalanobis <- function(source, target,
+                                covChoice = c("pooled","source","target"),
+                                shrinkage_alpha = NULL,
+                                ridge = 1e-6,
+                                squared = FALSE) {
+  # Basic checks
+  stopifnot(is.matrix(source), is.matrix(target))
+  if (ncol(source) != ncol(target)) {
+    stop("source/target must have same number of columns.")
+  }
+
+  # Means and covariances
+  mux <- colMeans(source)
+  muy <- colMeans(target)
+  Sx  <- stats::cov(source)
+  Sy  <- stats::cov(target)
+
+  covChoice <- match.arg(covChoice)
+  nx <- nrow(source); ny <- nrow(target); p <- ncol(source)
+
+  # Choose covariance for the metric
+  if (covChoice == "pooled") {
+    if (nx + ny - 2 <= 0) stop("Not enough samples for pooled covariance.")
+    S <- ((nx - 1) * Sx + (ny - 1) * Sy) / (nx + ny - 2)
+  } else if (covChoice == "source") {
+    S <- Sx
+  } else {
+    S <- Sy
+  }
+
+  # Symmetrize for numerical safety
+  S <- 0.5 * (S + t(S))
+
+  # Optional shrinkage toward spherical target: (1 - a) S + a * (tr(S)/p) I
+  if (!is.null(shrinkage_alpha)) {
+    if (!is.numeric(shrinkage_alpha) || length(shrinkage_alpha) != 1L ||
+        shrinkage_alpha < 0 || shrinkage_alpha > 1) {
+      stop("shrinkage_alpha must be in [0,1].")
+    }
+    trp <- sum(diag(S)) / p
+    S <- (1 - shrinkage_alpha) * S + shrinkage_alpha * trp * diag(p)
+  }
+
+  # Small ridge scaled by average variance to ensure positive definiteness
+  if (!is.null(ridge) && ridge > 0) {
+    trp <- sum(diag(S)) / p
+    S <- S + ridge * trp * diag(p)
+  }
+
+  # Stable inversion via eigen decomposition (SPD guard)
+  eig <- eigen(S, symmetric = TRUE)
+  eps <- .Machine$double.eps^0.5
+  eig$values[eig$values < eps] <- eps
+  SInv <- eig$vectors %*% (diag(1 / eig$values)) %*% t(eig$vectors)
+
+  # Mahalanobis between domain means
+  d <- mux - muy
+  d2 <- as.numeric(t(d) %*% SInv %*% d)
+  if (isTRUE(squared)) d2 else sqrt(d2)
+}
 
 
 
