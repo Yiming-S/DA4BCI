@@ -3,6 +3,7 @@
 export(compute_distance_matrix)
 export(compute_energy)
 export(compute_geodesic)
+export(compute_mahalanobis)
 export(compute_mmd)
 export(compute_wasserstein)
 export(distanceSummary)

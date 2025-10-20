@@ -8,7 +8,7 @@ distanceSummary(
   source,
   target,
   sigma = NULL,
-  include = c("PAD", "MMD2", "Energy", "MMD", "Wasserstein", "Geodesic"),
+  include = c("PAD", "MMD2", "Energy", "MMD", "Wasserstein", "Geodesic", "Mahalanobis"),
   format = c("list", "table"),
   pad_folds = 5,
   pad_ridge = 0.001,
@@ -34,16 +34,19 @@ an attribute \code{sigma_used} is attached.
 }
 \description{
 \code{distanceSummary} computes selected metrics (PAD, MMD/MMD2, Energy,
-Wasserstein, Geodesic) between \code{source} and \code{target}.
+Wasserstein, Geodesic, Mahalanobis) between \code{source} and \code{target}.
 }
 \examples{
 \dontrun{
 X <- matrix(rnorm(100), 20, 5); Y <- matrix(rnorm(100, 1), 20, 5)
 distanceSummary(X, Y, format = "table")
+distanceSummary(X, Y, include = c("PAD","MMD2","Energy","MMD",
+                                  "Wasserstein","Geodesic","Mahalanobis"))
 }
 }
 \seealso{
-\code{\link{compute_mmd}}, \code{\link{compute_wasserstein}}, \code{\link{compute_geodesic}}
+\code{\link{compute_mmd}}, \code{\link{compute_wasserstein}},
+\code{\link{compute_geodesic}}, \code{\link{compute_mahalanobis}}, \code{\link{compute_energy}}
 
 Other domain-adaptation: 
 \code{\link{euclidean_alignment}()},

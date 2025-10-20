@@ -2,7 +2,7 @@
 #  kernels_metrics.R
 #
 #  rbf_kernel, sigma_med, compute_distance_matrix
-#  compute_mmd, compute_energy, compute_wasserstein
+#  compute_mmd, compute_energy, compute_wasserstein, compute_mahalanobis
 
 
 
