@@ -324,7 +324,7 @@ compute_mahalanobis <- function(source, target,
   # Basic checks
   stopifnot(is.matrix(source), is.matrix(target))
   if (ncol(source) != ncol(target)) {
-    stop("source/target must have same number of columns.")
+    stop("source/target must have same number of columns")
   }
 
   # Means and covariances
