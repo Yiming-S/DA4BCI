@@ -23,6 +23,7 @@ Additionally, DA4BCI implements various distance metrics and evaluation tools to
 - **Wasserstein Distance:** Measures the minimal "cost" required to transform one distribution into another, emphasizing distribution alignment.
 - **Maximum Mean Discrepancy (MMD):** Assesses differences between distributions using kernel methods, ideal for detecting subtle distributional shifts.
 - **Energy Distance:** Captures differences between empirical distributions based on pairwise distances, useful for validating adaptation performance.
+- **Mahalanobis distance:** Whitening-aware distances using an estimated covariance (with optional shrinkage); sensitive to correlated feature scales.  
 
 The `distanceSummary` function conveniently summarizes these metrics, providing a quick and comprehensive evaluation framework for domain adaptation results.
 
