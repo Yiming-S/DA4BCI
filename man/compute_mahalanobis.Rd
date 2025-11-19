@@ -20,7 +20,7 @@ compute_mahalanobis(
 
 \item{covChoice}{Character, one of c("pooled","source","target"); default "pooled".}
 
-\item{shrinkage_alpha}{Optional scalar in \link{0,1}; shrinkage toward spherical target
+\item{shrinkage_alpha}{Optional scalar in 0 ~ 1; shrinkage toward spherical target
 (tr(S)/p) * I. Use small values like 0.05 ~ 0.2 if n is small or p is large.}
 
 \item{ridge}{Nonnegative scalar ridge added as (ridge * tr(S)/p) * I. Default 1e-6.}

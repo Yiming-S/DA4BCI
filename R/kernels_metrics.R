@@ -299,7 +299,7 @@ compute_wasserstein <- function(source, target) {
 #' @param source Numeric matrix (n_s × p): source samples.
 #' @param target Numeric matrix (n_t × p): target samples.
 #' @param covChoice Character, one of c("pooled","source","target"); default "pooled".
-#' @param shrinkage_alpha Optional scalar in [0,1]; shrinkage toward spherical target
+#' @param shrinkage_alpha Optional scalar in 0 ~ 1; shrinkage toward spherical target
 #'   (tr(S)/p) * I. Use small values like 0.05 ~ 0.2 if n is small or p is large.
 #' @param ridge Nonnegative scalar ridge added as (ridge * tr(S)/p) * I. Default 1e-6.
 #' @param squared Logical; if TRUE, return squared distance. Default FALSE.

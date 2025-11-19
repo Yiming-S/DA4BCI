@@ -136,23 +136,71 @@ LW_covariance <- function(x) {
 #' }
 #' @family spd-geometry
 #'
-matrix_power <- function(A, pow) {
-  A <- 0.5 * (A + t(A))
 
-  ## Short-cuts for common cases
-  if (pow ==  1)  return(A)
-  if (pow ==  0)  return(diag(nrow(A)))
-  if (pow == -1)  return(solve(A))
+matrix_power <- function(A, pow, eig_eps   = 1e-6,
+                        ridge_eps = 1e-6,
+                        max_retry = 3L,
+                        verbose   = FALSE) {
+  # Symmetrize and trivial powers
+  A <- (A + t(A)) / 2
+  n <- nrow(A)
 
-  ## Eigendecomposition (symmetric -> guaranteed real/orthonormal V)
-  E <- eigen(A, symmetric = TRUE, only.values = FALSE)
-  vals <- pmax(E$values, 1e-8)         # clamp tiny / negative eigenvalues
+  if (pow == 1) return(A)
+  if (pow == 0) return(diag(n))
 
-  ## Avoid allocating a full diag(): scale columns of V, then tcrossprod
-  Vscaled <- E$vectors * rep(vals ^ (pow / 2), each = nrow(E$vectors))
-  tcrossprod(Vscaled)                  # == V %*% diag(vals^pow) %*% t(V)
+  # Non-finite check
+  if (any(!is.finite(A))) {
+    if (verbose) message("[matrix_power] Non-finite A, returning identity.")
+    return(diag(n))
+  }
+
+  # Fast path for inverse (pow = -1): Strict PD check via Cholesky
+  if (pow == -1) {
+    # chol() fails if A is not PD, automatically forcing fallback to spectral repair
+    R <- try(chol(A), silent = TRUE)
+    if (!inherits(R, "try-error")) {
+      if (verbose) message("[matrix_power] Used Cholesky (strictly PD) for inverse.")
+      return(chol2inv(R))
+    }
+    if (verbose) message("[matrix_power] Cholesky failed (Non-PD), fallback to spectral.")
+  }
+
+  # Spectral decomposition with iterative ridge
+  ridge  <- ridge_eps
+  eig_ok <- FALSE
+  ee     <- NULL
+
+  for (attempt in seq_len(max_retry)) {
+    M  <- A + diag(ridge, n)
+    ee <- try(eigen(M, symmetric = TRUE), silent = TRUE)
+    if (!inherits(ee, "try-error")) {
+      eig_ok <- TRUE
+      break
+    }
+    ridge <- ridge * 10
+    if (verbose) {
+      message(sprintf("[matrix_power] eigen failed, ridge=%.3e (attempt %d)",
+                      ridge, attempt + 1L))
+    }
+  }
+
+  # Still failed -> identity
+  if (!eig_ok) {
+    if (verbose) message("[matrix_power] eigen failed after retries, returning identity.")
+    return(diag(n))
+  }
+
+  # Clamp eigenvalues and reconstruct
+  vals <- Re(ee$values)
+  vals[!is.finite(vals)] <- eig_eps # Kept as requested "small defense line"
+  vals <- pmax(vals, eig_eps)
+
+  vals_pow <- if (pow == -1) 1 / vals else vals ^ pow
+  V        <- ee$vectors
+
+  Vscaled <- V * rep(sqrt(vals_pow), each = n)
+  tcrossprod(Vscaled)
 }
-
 
 
 #' Riemannian (Affine-Invariant) Mean of SPD Matrices

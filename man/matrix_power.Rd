@@ -4,7 +4,14 @@
 \alias{matrix_power}
 \title{Matrix Power for Symmetric Positive Definite Matrices}
 \usage{
-matrix_power(A, pow)
+matrix_power(
+  A,
+  pow,
+  eig_eps = 1e-06,
+  ridge_eps = 1e-06,
+  max_retry = 3L,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{A}{Numeric symmetric positive definite matrix (p × p).}
