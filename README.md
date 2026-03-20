@@ -34,7 +34,13 @@ The `distanceSummary` function conveniently summarizes these metrics, providing 
    ```r
    install.packages("remotes")
    remotes::install_github("Yiming-S/DA4BCI", force = TRUE)
+   ```
 
+## Choosing a Method
+
+For a practical method-selection guide organized by shift type, data
+representation, supervision level, and risk, see
+[Algorithm Selection Guide](ALGORITHM_SELECTION_GUIDE.md).
 
 
    
