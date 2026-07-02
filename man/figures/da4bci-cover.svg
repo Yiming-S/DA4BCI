@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">DA4BCI cover</title>
+  <desc id="desc">Domain Adaptation for EEG-based BCI</desc>
+  
+    <defs>
+      <linearGradient id="accentGrad" x1="0" x2="1" y1="0" y2="1">
+        <stop offset="0" stop-color="#4F46E5"/>
+        <stop offset="1" stop-color="#0EA5A4"/>
+      </linearGradient>
+      <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0F172A" flood-opacity="0.08"/>
+      </filter>
+      <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+        <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#E2E8F0" stroke-width="1" opacity="0.55"/>
+      </pattern>
+    </defs>
+  <rect width="1200" height="420" fill="#F8FAFC"/>
+  <rect width="1200" height="420" fill="url(#grid)" opacity="0.36"/>
+  <circle cx="1020" cy="88" r="150" fill="#4F46E5" opacity="0.045"/>
+  <circle cx="114" cy="350" r="120" fill="#0EA5A4" opacity="0.045"/>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif">
+    <rect x="48" y="30" width="1104" height="360" rx="24" fill="#FFFFFF" opacity="0.96" filter="url(#softShadow)"/>
+    <rect x="48" y="30" width="1104" height="360" rx="24" fill="none" stroke="#E2E8F0" stroke-width="1.2"/>
+    <text x="86" y="82" fill="#0F172A" font-size="42" font-weight="850" letter-spacing="0">DA4BCI</text>
+    <text x="88" y="112" fill="#475569" font-size="17" font-weight="550" letter-spacing="0">Domain Adaptation for EEG-based BCI</text>
+    <rect x="954" y="56" width="156" height="34" rx="17" fill="#F8FAFC" stroke="#4F46E5" stroke-width="1.4"/>
+    <text x="1032" y="78" fill="#4F46E5" font-size="13" font-weight="800" text-anchor="middle" letter-spacing="0">R package</text>
+    <g transform="translate(0 16)"><rect x="105" y="118" width="315" height="190" rx="14" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.2"/><rect x="675" y="118" width="315" height="190" rx="14" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.2"/><circle cx="170" cy="202" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="188" cy="228" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="206" cy="190" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="236" cy="222" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="250" cy="178" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="279" cy="206" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="310" cy="235" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="336" cy="194" r="7" fill="#4F46E5" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="744" cy="232" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="766" cy="199" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="794" cy="252" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="818" cy="216" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="846" cy="184" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="872" cy="230" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="905" cy="202" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><circle cx="928" cy="248" r="7" fill="#0EA5A4" stroke="#FFFFFF" stroke-width="1.5" opacity="0.92"/><ellipse cx="254" cy="208" rx="112" ry="55" fill="none" stroke="#4F46E5" stroke-width="2.5" opacity="0.5" transform="rotate(18 254 208)"/><ellipse cx="836" cy="219" rx="112" ry="55" fill="none" stroke="#0EA5A4" stroke-width="2.5" opacity="0.5" transform="rotate(-12 836 219)"/><path d="M 430 202 C 510 120 605 120 685 202" fill="none" stroke="#4F46E5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M 430 236 C 510 318 605 318 685 236" fill="none" stroke="#0EA5A4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><rect x="482" y="146" width="72" height="28" rx="14" fill="#FFFFFF" stroke="#4F46E5" stroke-width="1.5"/><text x="518" y="165" fill="#4F46E5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0" >SA</text><rect x="559" y="146" width="72" height="28" rx="14" fill="#FFFFFF" stroke="#4F46E5" stroke-width="1.5"/><text x="595" y="165" fill="#4F46E5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0" >CORAL</text><rect x="502" y="260" width="72" height="28" rx="14" fill="#FFFFFF" stroke="#0EA5A4" stroke-width="1.5"/><text x="538" y="279" fill="#0EA5A4" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0" >PT</text><rect x="579" y="260" width="72" height="28" rx="14" fill="#FFFFFF" stroke="#0EA5A4" stroke-width="1.5"/><text x="615" y="279" fill="#0EA5A4" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0" >OT</text><rect x="538" y="204" width="72" height="28" rx="14" fill="#FFFFFF" stroke="#4F46E5" stroke-width="1.5"/><text x="574" y="223" fill="#4F46E5" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="0" >TCA</text><text x="260" y="333" fill="#475569" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="0" >source session features</text><text x="835" y="333" fill="#475569" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="0" >target session features</text></g>
+    <line x1="86" y1="364" x2="1114" y2="364" stroke="#E2E8F0" stroke-width="1"/>
+    <circle cx="92" cy="379" r="4" fill="#4F46E5"/>
+    <text x="108" y="384" fill="#64748B" font-size="13" font-weight="650" letter-spacing="0">Cross-session EEG / BCI methods toolkit</text>
+    <text x="1114" y="384" fill="#94A3B8" font-size="12" font-weight="600" text-anchor="end" letter-spacing="0">Yiming Shen</text>
+  </g>
+</svg>
