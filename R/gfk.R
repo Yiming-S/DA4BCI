@@ -21,10 +21,11 @@
 #'
 #' @return A list containing:
 #' \describe{
-#'   \item{\code{weighted_source_data}}{The source data projected by the GFK matrix \code{G}.}
-#'   \item{\code{target_data}}{The target data projected by the same GFK matrix.}
-#'   \item{\code{G}}{A \eqn{d \times d} geodesic flow kernel derived from the PCA bases
-#'     of source and target.}
+#'   \item{\code{weighted_source_data}}{The source data projected by \eqn{G^{1/2}}, so
+#'     that Euclidean inner products in the transformed space equal the GFK kernel.}
+#'   \item{\code{target_data}}{The target data projected by the same \eqn{G^{1/2}}.}
+#'   \item{\code{G}}{A \eqn{p \times p} geodesic flow kernel built from the principal
+#'     angles between the source and target PCA subspaces.}
 #' }
 #'
 #' @details
@@ -57,69 +58,75 @@
 
 domain_adaptation_gfk <- function(source_data, target_data, dim_subspace = 10) {
 
-  # Step 1: PCA on source and target data
-  dim_subspace <- min(dim_subspace, ncol(source_data), ncol(target_data))
-  pca_s <- prcomp(source_data, scale. = TRUE, rank. = dim_subspace)
-  pca_t <- prcomp(target_data, scale. = TRUE, rank. = dim_subspace)
-
-  # Us and Ut are d x dim_subspace with orthonormal columns
-  Us <- pca_s$rotation
-  Ut <- pca_t$rotation
-
-  d <- nrow(Us)
-  k <- dim_subspace
-
-  # Step 2: Orthonormal complements Qs, Qt
-  Qs <- orthonormal_complement(Us)
-  Qt <- orthonormal_complement(Ut)
-
-  # Step 3: Construct the intermediate matrices for the geodesic
-  U0 <- cbind(Us, Qs)
-  U1 <- cbind(Ut, Qt)
-
-  # Compute M0 = U0^T * U1 and do SVD on it
-  M0 <- t(U0) %*% U1
-  svd_M0 <- svd(M0)
-
-  U_m <- svd_M0$u
-  S_m <- svd_M0$d
-  V_m <- svd_M0$v
-
-  # Clamp singular values to [0,1] and compute principal angles
-  S_clamped <- pmin(S_m, 1)
-  angles <- acos(S_clamped)
-
-  # Step 4: Build the GFK kernel G from the angles (simplified approach)
-  int_cossin <- function(ti) {
-    if (ti < 1e-12) {
-      # Small-angle approximation
-      return(c(1, 0))
-    } else {
-      e_val <- (ti - sin(ti)) / (ti)
-      f_val <- (1 - cos(ti)) / (ti)
-      return(c(e_val, f_val))
-    }
+  # Scaled PCA subspaces. Population-std scaling matches the Python twin's
+  # sklearn StandardScaler; a uniform (per-n) scale factor does not change the
+  # subspace, so this also matches prcomp(scale. = TRUE) up to that constant.
+  scale_pop <- function(X) {
+    mu  <- colMeans(X)
+    Xc  <- sweep(X, 2, mu, "-")
+    sdv <- sqrt(colMeans(Xc^2))
+    sdv[sdv < 1e-12] <- 1
+    sweep(Xc, 2, sdv, "/")
   }
 
-  # Initialize a diagonal vector for integrating the angles
-  g_vec <- rep(1, d)
-  for (i in seq_len(k)) {
-    tmp <- int_cossin(angles[i])
-    e_i <- tmp[1]
-    g_vec[i] <- e_i
+  p  <- ncol(source_data)
+  Vs <- svd(scale_pop(source_data), nu = 0)$v      # (p x min(n_s, p))
+  Vt <- svd(scale_pop(target_data), nu = 0)$v      # (p x min(n_t, p))
+
+  # Clamp k to a dimension both domains actually span, so few-trial inputs do
+  # not crash. For a meaningful flow use k < p.
+  k  <- min(dim_subspace, p, ncol(Vs), ncol(Vt))
+  Ps <- Vs[, seq_len(k), drop = FALSE]             # (p x k) source subspace
+  Pt <- Vt[, seq_len(k), drop = FALSE]             # (p x k) target subspace
+  Rs <- orthonormal_complement(Ps)                 # (p x (p - k)) source complement
+
+  # Closed-form geodesic-flow integral diagonals for principal angles theta,
+  # with the correct theta -> 0 limits (lam1 -> 2, lam2 -> 0, lam3 -> 0).
+  flow_diagonals <- function(theta) {
+    eps   <- 1e-12
+    two_t <- 2 * theta
+    safe  <- ifelse(theta < eps, 1, two_t)
+    ratio <- ifelse(theta < eps, 1, sin(two_t) / safe)
+    cross <- ifelse(theta < eps, 0, (cos(two_t) - 1) / safe)
+    list(lam1 = 1 + ratio, lam2 = cross, lam3 = 1 - ratio)
   }
-  diag_g <- diag(g_vec, d, d)
 
-  # Construct G = U0 * U_m * diag_g * U_m^T * U0^T
-  G <- U0 %*% U_m %*% diag_g %*% t(U_m) %*% t(U0)
+  # Principal angles between the source and target SUBSPACES (k x k). The old
+  # code used t(U0) %*% U1 on the full orthonormal bases, which is always
+  # orthogonal -> the angles were structurally trivial and G was a no-op or noise.
+  sv    <- svd(crossprod(Ps, Pt))                  # SVD of t(Ps) %*% Pt
+  U1    <- sv$u
+  gamma <- sv$d
+  V1    <- sv$v
+  theta <- acos(pmin(pmax(gamma, -1), 1))          # (k)
+  fl    <- flow_diagonals(theta)
 
-  # Step 5: Map source and target data using G
-  source_data_gfk <- source_data %*% G
-  target_data_gfk <- target_data %*% G
+  PU <- Ps %*% U1                                   # (p x k)
+  G  <- PU %*% diag(fl$lam1, k, k) %*% t(PU)
+
+  if (ncol(Rs) > 0) {
+    # Columns of B = t(Rs) %*% Pt %*% V1 are (-sin theta_j) * u2_j, matched to
+    # angle j; normalize per column to recover the complement directions. The
+    # complement rotation MUST share the same right basis V1 as U1 so the angles
+    # pair column-for-column with PU.
+    B     <- crossprod(Rs, Pt %*% V1)               # (p - k x k)
+    norms <- sqrt(colSums(B^2))
+    U2    <- -sweep(B, 2, ifelse(norms > 1e-12, norms, 1), "/")
+    RU    <- Rs %*% U2                              # (p x k), paired with PU
+    L2    <- diag(fl$lam2, k, k)
+    L3    <- diag(fl$lam3, k, k)
+    G <- G + PU %*% L2 %*% t(RU) + RU %*% L2 %*% t(PU) + RU %*% L3 %*% t(RU)
+  }
+
+  # Symmetric PSD square root: features are projected by G^(1/2) so that
+  # Euclidean inner products in the transformed space equal the GFK kernel.
+  G      <- 0.5 * (G + t(G))
+  eig    <- eigen(G, symmetric = TRUE)
+  G_half <- eig$vectors %*% diag(sqrt(pmax(eig$values, 0)), p, p) %*% t(eig$vectors)
 
   return(list(
-    weighted_source_data = source_data_gfk,
-    target_data = target_data_gfk,
-    G = G
+    weighted_source_data = source_data %*% G_half,
+    target_data          = target_data %*% G_half,
+    G                    = G
   ))
 }

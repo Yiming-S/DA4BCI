@@ -422,10 +422,12 @@ compute_geodesic <- function(source, target, d = NULL) {
             ncol(source) == ncol(target))
 
   p <- ncol(source)
-  # Decide subspace dimension
+  # Decide subspace dimension from the CENTERED rank, to match the centered
+  # basis built below (centering drops one degree of freedom; the uncentered
+  # rank would pull a zero-singular-value noise direction into the subspace).
   if (is.null(d)) {
-    d_source <- qr(source)$rank
-    d_target <- qr(target)$rank
+    d_source <- qr(scale(source, center = TRUE, scale = FALSE))$rank
+    d_target <- qr(scale(target, center = TRUE, scale = FALSE))$rank
     d        <- min(d_source, d_target)
   } else {
     d <- as.integer(d)
@@ -433,11 +435,14 @@ compute_geodesic <- function(source, target, d = NULL) {
       stop("'d' must be between 1 and number of columns")
   }
 
-  # Center columns and orthonormalise via QR
+  # Feature-space principal subspace: the top-k right singular vectors of the
+  # centered data, shape (p x k). This is independent of the number of samples,
+  # so t(U) %*% V is well-defined even when n_s != n_t (the normal DA case). The
+  # previous QR-in-sample-space basis was (n x k) and required n_s == n_t.
   orthonorm_basis <- function(X, k) {
     X_centered <- scale(X, center = TRUE, scale = FALSE)
-    Q <- qr.Q(qr(X_centered))
-    Q[, seq_len(min(k, ncol(Q))), drop = FALSE]        # p × k orthonormal matrix
+    Vmat <- svd(X_centered, nu = 0)$v                  # (p x min(n, p))
+    Vmat[, seq_len(min(k, ncol(Vmat))), drop = FALSE]  # (p x k)
   }
 
   U <- orthonorm_basis(source, d)

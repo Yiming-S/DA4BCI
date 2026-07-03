@@ -92,8 +92,10 @@ rbf_kernel <- function(x, y, sigma,
 #' @family kernels-metrics
 #' @export
 #'
-sigma_med <- function(X, Y, m = 400, seed = NULL) {
-  # Optional reproducibility
+sigma_med <- function(X, Y, m = 400, seed = 0) {
+  # Reproducible by default: with seed = NULL the subsampling for n1 + n2 > m
+  # changed the RBF bandwidth (and every MMD / Energy / KMM value built on it)
+  # run-to-run and across machines. Defaulting to seed = 0 fixes the subsample.
   stopifnot(ncol(X) == ncol(Y))
   if (!is.null(seed)) set.seed(seed)
 

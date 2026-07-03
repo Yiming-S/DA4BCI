@@ -72,13 +72,18 @@ domain_adaptation_coral <- function(source_data, target_data, lambda = 1e-5) {
   cov_source <- regularize_cov(cov_source, lambda)
   cov_target <- regularize_cov(cov_target, lambda)
 
-  # Whiten source data
+  # Whiten source data. Right-multiplying by M requires cov(Xs %*% M) =
+  # t(M) cov_s M = I, i.e. M t(M) = solve(cov_s). R's chol() returns the UPPER
+  # factor U with t(U) U = solve(cov_s); the whitener is the LOWER factor
+  # t(U) = L (L t(L) = solve(cov_s)), NOT U. Using U left the source unwhitened
+  # (aligned covariance off by a large factor).
   chol_decomp_s <- tryCatch(
-    chol(solve(cov_source)),
-    error = function(e) chol(MASS::ginv(cov_source))
+    t(chol(solve(cov_source))),
+    error = function(e) t(chol(MASS::ginv(cov_source)))
   )
 
-  # Color the whitened source data
+  # Recolor the whitened source with the target covariance. chol() (upper) U_t
+  # satisfies t(U_t) U_t = cov_target, so cov(Z %*% U_t) = U_t (used as recolor).
   chol_decomp_t <- tryCatch(
     chol(cov_target),
     error = function(e) chol(MASS::ginv(cov_target))
